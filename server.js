@@ -1,21 +1,11 @@
-const express = require('express');
-const dotenv = require('dotenv');
-const cors = require('cors');
-const morgan = require('morgan');
-const helmet = require('helmet');
-const connectDB = require('./src/config/database');
-
-// Load environment variables
+const dotenv = require("dotenv");
 dotenv.config();
 
-// Connect to MongoDB
+const connectDB = require("./src/config/database");
+const app = require("./src/app");
+
+// Connect DB
 connectDB();
 
-const app = require('./src/app');
-
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV}`);
-});
+// Export app for Vercel
+module.exports = app;
