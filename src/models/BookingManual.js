@@ -21,8 +21,15 @@ const invoiceItemSchema = new mongoose.Schema({
   validUpto: { type: String, default: '' }
 });
 
+const extraChargeSchema = new mongoose.Schema({
+  id: { type: Number, required: true },
+  name: { type: String, required: true },
+  rate: { type: Number, default: 0 },
+  amount: { type: Number, default: 0 }
+});
+
 const bookingManualSchema = new mongoose.Schema({
-  grNo: { type: String, required: true, unique: true }, // Now required, user will provide it
+  grNo: { type: String, required: true, unique: true },
   bookingFrom: { type: String, required: true },
   bookingDate: { type: Date, required: true, default: Date.now },
   destination: { type: String, required: true },
@@ -67,7 +74,7 @@ const bookingManualSchema = new mongoose.Schema({
   deliveryType: { type: String, required: true },
   loadType: { type: String, required: true },
   mkExecutive: { type: String, default: '' },
-  freightOn: { type: String, default: '' },
+  freightOn: { type: String, default: 'CHARGE WEIGHT' },
   manualRates: { type: Boolean, default: false },
   ncv: { type: Boolean, default: false },
   printAfterSave: { type: Boolean, default: false },
@@ -96,6 +103,17 @@ const bookingManualSchema = new mongoose.Schema({
   goodsItems: [goodsItemSchema],
   invoices: [invoiceItemSchema],
   
+  // NEW FIELDS FOR FREIGHT CALCULATION
+  freightRate: { type: Number, default: 0 },
+  extraCharges: [extraChargeSchema],
+  gstPaidBy: { type: String, default: 'CONSIGNEE' },
+  gstRate: { type: Number, default: 0 },
+  advanceAmount: { type: Number, default: 0 },
+  subTotal: { type: Number, default: 0 },
+  gstAmount: { type: Number, default: 0 },
+  totalAmount: { type: Number, default: 0 },
+  balanceAmount: { type: Number, default: 0 },
+  
   // Status
   status: { type: String, enum: ['active', 'cancelled'], default: 'active' },
   cancelledDate: { type: Date },
@@ -106,8 +124,5 @@ const bookingManualSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
-
-// Remove the pre-save middleware that auto-generates GR number
-// No auto-generation - user will provide their own GR number
 
 module.exports = mongoose.model('BookingManual', bookingManualSchema);

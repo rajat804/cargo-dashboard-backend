@@ -21,8 +21,15 @@ const invoiceItemSchema = new mongoose.Schema({
   validUpto: { type: String, default: '' }
 });
 
+const extraChargeSchema = new mongoose.Schema({
+  id: { type: Number, required: true },
+  name: { type: String, required: true },
+  rate: { type: Number, default: 0 },
+  amount: { type: Number, default: 0 }
+});
+
 const bookingSchema = new mongoose.Schema({
-  grNo: { type: String, unique: true, sparse: true }, // Remove required: true
+  grNo: { type: String, required: true, unique: true },
   bookingFrom: { type: String, required: true },
   bookingDate: { type: Date, required: true, default: Date.now },
   destination: { type: String, required: true },
@@ -67,7 +74,7 @@ const bookingSchema = new mongoose.Schema({
   deliveryType: { type: String, required: true },
   loadType: { type: String, required: true },
   mkExecutive: { type: String, default: '' },
-  freightOn: { type: String, default: '' },
+  freightOn: { type: String, default: 'CHARGE WEIGHT' },
   manualRates: { type: Boolean, default: false },
   ncv: { type: Boolean, default: false },
   printAfterSave: { type: Boolean, default: false },
@@ -96,12 +103,23 @@ const bookingSchema = new mongoose.Schema({
   goodsItems: [goodsItemSchema],
   invoices: [invoiceItemSchema],
   
+  // NEW FIELDS FOR FREIGHT CALCULATION
+  freightRate: { type: Number, default: 0 },
+  extraCharges: [extraChargeSchema],
+  gstPaidBy: { type: String, default: 'CONSIGNEE' },
+  gstRate: { type: Number, default: 0 },
+  advanceAmount: { type: Number, default: 0 },
+  subTotal: { type: Number, default: 0 },
+  gstAmount: { type: Number, default: 0 },
+  totalAmount: { type: Number, default: 0 },
+  balanceAmount: { type: Number, default: 0 },
+  
   // Status
   status: { type: String, enum: ['active', 'cancelled'], default: 'active' },
   cancelledDate: { type: Date },
   cancelledReason: { type: String },
   
-  // POD
+  // POD (Proof of Delivery)
   podEntry: { type: String, default: '' },
   podUploaded: { type: Boolean, default: false },
   podUrl: { type: String, default: '' },
@@ -117,16 +135,12 @@ const bookingSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Generate GR Number before save (fallback)
+// Generate GR Number before save
 bookingSchema.pre('save', async function(next) {
   if (!this.grNo) {
-    try {
-      const count = await mongoose.model('Booking').countDocuments();
-      this.grNo = `GR${String(count + 1).padStart(6, '0')}`;
-      console.log('Generated GR No via middleware:', this.grNo);
-    } catch (error) {
-      console.error('Error generating GR No:', error);
-    }
+    const count = await mongoose.model('Booking').countDocuments();
+    this.grNo = `GR${String(count + 1).padStart(6, '0')}`;
+    console.log('Generated GR No:', this.grNo);
   }
   next();
 });
