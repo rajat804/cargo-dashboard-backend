@@ -92,4 +92,46 @@ router.get('/branches', (req, res) => {
   });
 });
 
+// Add these to your existing staticRoutes.js
+
+// Branch options
+router.get('/branches', (req, res) => {
+  res.status(200).json({
+    success: true,
+    data: ["JAMNA BAZAR", "WAZIRPUR", "MANGOLPURI", "ZAKHIRA", "NEW LAJPAT RAI MARKET", "CORPORATE OFFICE", "DELHI", "MUMBAI"]
+  });
+});
+
+// To Station options
+router.get('/to-stations', (req, res) => {
+  res.status(200).json({
+    success: true,
+    data: ["U P BORDER A JH UP", "U P BORDER D BR GP", "U P BORDER B BR", "DELHI", "MUMBAI", "BANGALORE"]
+  });
+});
+
+// Driver name options
+router.get('/drivers', (req, res) => {
+  res.status(200).json({
+    success: true,
+    data: ["Rajesh Kumar", "Suresh Singh", "Mahesh Sharma", "Ramesh Gupta", "Satish Verma", "Vikash Singh"]
+  });
+});
+
+// Vehicle vendor options
+router.get('/vendors', (req, res) => {
+  res.status(200).json({
+    success: true,
+    data: ["TATA MOTORS", "ASHOK LEYLAND", "MAHINDRA", "EICHER", "BHARAT BENZ"]
+  });
+});
+
+// Loading person options
+router.get('/loading-persons', (req, res) => {
+  res.status(200).json({
+    success: true,
+    data: ["Mohan Singh", "Ravi Kumar", "Amit Sharma", "Pradeep Verma"]
+  });
+});
+
 module.exports = router;

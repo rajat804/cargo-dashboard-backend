@@ -11,6 +11,10 @@ const dashboardRoutes = require("./routes/dashboardRoutes");
 const fileRoutes = require("./routes/fileRoutes");
 const staticRoutes = require("./routes/staticRoutes");
 const bookingManualRoutes = require("./routes/bookingManualRoutes");
+const localManifestRoutes = require('./routes/localManifestRoutes');
+const longRouteManifestRoutes = require('./routes/longRouteManifestRoutes');
+const lorryHireChallanRoutes = require('./routes/lorryHireChallanRoutes');
+
 
 // Middleware
 const errorHandler = require("./middleware/errorHandler");
@@ -38,6 +42,12 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/files", fileRoutes);
 app.use("/api/static", staticRoutes);
 app.use("/api/bookings-manual", bookingManualRoutes);
+app.use('/api/local-manifests', localManifestRoutes);
+app.use('/api/long-route-manifests', longRouteManifestRoutes);
+app.use('/api/lorry-hire-challans', lorryHireChallanRoutes);
+
+
+
 
 // Health check
 app.get("/api/health", (req, res) => {
