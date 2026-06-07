@@ -45,7 +45,7 @@ const createBooking = async (req, res) => {
   }
 };
 
-// @desc    Get all manual bookings
+// @desc    Get all manual bookings with filters
 // @route   GET /api/bookings-manual
 const getBookings = async (req, res) => {
   try {
@@ -63,19 +63,40 @@ const getBookings = async (req, res) => {
       sortOrder = 'desc'
     } = req.query;
     
+    console.log('=== MANUAL BOOKINGS SEARCH ===');
+    console.log('Search params:', { status, fromDate, toDate, grNo, branch });
+    
     const query = {};
     
     if (status) query.status = status;
-    if (grNo) query.grNo = { $regex: grNo, $options: 'i' };
-    if (branch) query.bookingFrom = branch;
+    
+    // FIX: Better GR No search - handles both numeric and alphanumeric
+    if (grNo && grNo.trim() !== '') {
+      const searchTerm = grNo.trim();
+      // Use regex for partial matching, case-insensitive
+      query.grNo = { $regex: searchTerm, $options: 'i' };
+      console.log('GR No filter (regex):', query.grNo);
+    }
+    
+    if (branch && branch !== 'all') query.bookingFrom = branch;
     if (consignorName) query.consignorName = { $regex: consignorName, $options: 'i' };
     if (consigneeName) query.consigneeName = { $regex: consigneeName, $options: 'i' };
     
     if (fromDate || toDate) {
       query.bookingDate = {};
-      if (fromDate) query.bookingDate.$gte = new Date(fromDate);
-      if (toDate) query.bookingDate.$lte = new Date(toDate);
+      if (fromDate) {
+        const startDate = new Date(fromDate);
+        startDate.setHours(0, 0, 0, 0);
+        query.bookingDate.$gte = startDate;
+      }
+      if (toDate) {
+        const endDate = new Date(toDate);
+        endDate.setHours(23, 59, 59, 999);
+        query.bookingDate.$lte = endDate;
+      }
     }
+    
+    console.log('MongoDB Query:', JSON.stringify(query, null, 2));
     
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const sortOptions = { [sortBy]: sortOrder === 'desc' ? -1 : 1 };
@@ -87,6 +108,16 @@ const getBookings = async (req, res) => {
         .limit(parseInt(limit)),
       BookingManual.countDocuments(query)
     ]);
+    
+    console.log(`Found ${bookings.length} manual bookings`);
+    if (bookings.length > 0) {
+      console.log('GR Numbers found:', bookings.map(b => b.grNo));
+    } else {
+      console.log('No bookings found for this search');
+      // Debug: Show all GR numbers in the database
+      const allBookings = await BookingManual.find({ status: 'active' }).limit(10);
+      console.log('Sample GR numbers in DB:', allBookings.map(b => b.grNo));
+    }
     
     res.status(200).json({
       success: true,
@@ -108,7 +139,6 @@ const getBookings = async (req, res) => {
 };
 
 // @desc    Get single manual booking by ID
-// @route   GET /api/bookings-manual/:id
 const getBookingById = async (req, res) => {
   try {
     const booking = await BookingManual.findById(req.params.id);
@@ -134,7 +164,6 @@ const getBookingById = async (req, res) => {
 };
 
 // @desc    Get manual booking by GR number
-// @route   GET /api/bookings-manual/grn/:grNo
 const getBookingByGrNo = async (req, res) => {
   try {
     const booking = await BookingManual.findOne({ grNo: req.params.grNo });
@@ -160,7 +189,6 @@ const getBookingByGrNo = async (req, res) => {
 };
 
 // @desc    Update manual booking
-// @route   PUT /api/bookings-manual/:id
 const updateBooking = async (req, res) => {
   try {
     const booking = await BookingManual.findById(req.params.id);
@@ -171,6 +199,10 @@ const updateBooking = async (req, res) => {
         message: 'Manual booking not found'
       });
     }
+    
+    // Don't allow updating GR number
+    delete req.body.grNo;
+    delete req.body.autoLHC;
     
     const updatedBooking = await BookingManual.findByIdAndUpdate(
       req.params.id,
@@ -193,7 +225,6 @@ const updateBooking = async (req, res) => {
 };
 
 // @desc    Cancel manual booking
-// @route   PUT /api/bookings-manual/:id/cancel
 const cancelBooking = async (req, res) => {
   try {
     const { cancelledReason } = req.body;
@@ -241,7 +272,6 @@ const cancelBooking = async (req, res) => {
 };
 
 // @desc    Restore cancelled manual booking
-// @route   PUT /api/bookings-manual/:id/restore
 const restoreBooking = async (req, res) => {
   try {
     const booking = await BookingManual.findById(req.params.id);
@@ -280,7 +310,6 @@ const restoreBooking = async (req, res) => {
 };
 
 // @desc    Delete manual booking (permanent)
-// @route   DELETE /api/bookings-manual/:id
 const deleteBooking = async (req, res) => {
   try {
     const booking = await BookingManual.findById(req.params.id);
@@ -308,7 +337,6 @@ const deleteBooking = async (req, res) => {
 };
 
 // @desc    Get manual booking statistics
-// @route   GET /api/bookings-manual/stats
 const getBookingStats = async (req, res) => {
   try {
     const [activeCount, cancelledCount, activeFreight, cancelledFreight] = await Promise.all([
