@@ -1,9 +1,6 @@
 const Booking = require('../models/Booking');
 const Client = require('../models/Client');
 
-// @desc    Create new booking
-// @route   POST /api/bookings
-// @access  Public
 const createBooking = async (req, res) => {
   try {
     const bookingData = req.body;
@@ -17,6 +14,13 @@ const createBooking = async (req, res) => {
         success: false,
         message: 'Missing required fields: bookingFrom, destination, consignorName, consigneeName'
       });
+    }
+    
+    // Add user information from request (if available)
+    if (req.user) {
+      bookingData.createdBy = req.user._id || req.user.id;
+      bookingData.userName = req.user.name || '';
+      bookingData.createdByBranch = bookingData.bookingFrom;
     }
     
     // Remove grNo from request body if it exists (let the model generate it)
@@ -44,6 +48,7 @@ const createBooking = async (req, res) => {
     });
   }
 };
+
 // @desc    Get all bookings with filters
 // @route   GET /api/bookings
 // @access  Public
@@ -67,14 +72,22 @@ const getBookings = async (req, res) => {
     
     if (status) query.status = status;
     if (grNo) query.grNo = { $regex: grNo, $options: 'i' };
-    if (branch) query.bookingFrom = branch;
+    if (branch && branch !== 'all') query.bookingFrom = branch;
     if (consignorName) query.consignorName = { $regex: consignorName, $options: 'i' };
     if (consigneeName) query.consigneeName = { $regex: consigneeName, $options: 'i' };
     
     if (fromDate || toDate) {
       query.bookingDate = {};
-      if (fromDate) query.bookingDate.$gte = new Date(fromDate);
-      if (toDate) query.bookingDate.$lte = new Date(toDate);
+      if (fromDate) {
+        const startDate = new Date(fromDate);
+        startDate.setHours(0, 0, 0, 0);
+        query.bookingDate.$gte = startDate;
+      }
+      if (toDate) {
+        const endDate = new Date(toDate);
+        endDate.setHours(23, 59, 59, 999);
+        query.bookingDate.$lte = endDate;
+      }
     }
     
     const skip = (parseInt(page) - 1) * parseInt(limit);

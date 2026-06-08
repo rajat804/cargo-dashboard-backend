@@ -28,6 +28,13 @@ const createBooking = async (req, res) => {
       });
     }
     
+    // Add user information from request (if available)
+    if (req.user) {
+      bookingData.createdBy = req.user._id || req.user.id;
+      bookingData.userName = req.user.name || '';
+      bookingData.createdByBranch = bookingData.bookingFrom;
+    }
+    
     const booking = new BookingManual(bookingData);
     await booking.save();
     

@@ -114,6 +114,11 @@ const bookingSchema = new mongoose.Schema({
   totalAmount: { type: Number, default: 0 },
   balanceAmount: { type: Number, default: 0 },
   
+  // NEW FIELDS FOR USER TRACKING
+  createdBy: { type: String, default: '' },      // User ID who created the booking
+  createdByBranch: { type: String, default: '' }, // Branch selected at login
+  userName: { type: String, default: '' },        // User's name for Self selection
+  
   // Status
   status: { type: String, enum: ['active', 'cancelled'], default: 'active' },
   cancelledDate: { type: Date },
