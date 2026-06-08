@@ -14,6 +14,7 @@ const bookingManualRoutes = require("./routes/bookingManualRoutes");
 const localManifestRoutes = require('./routes/localManifestRoutes');
 const longRouteManifestRoutes = require('./routes/longRouteManifestRoutes');
 const lorryHireChallanRoutes = require('./routes/lorryHireChallanRoutes');
+const authRoutes = require('./routes/authRoutes');
 
 
 // Middleware
@@ -45,12 +46,13 @@ app.use("/api/bookings-manual", bookingManualRoutes);
 app.use('/api/local-manifests', localManifestRoutes);
 app.use('/api/long-route-manifests', longRouteManifestRoutes);
 app.use('/api/lorry-hire-challans', lorryHireChallanRoutes);
+app.use('/api/auth', authRoutes);
 
 
 
 
 // Health check
-app.get("/api/health", (req, res) => {
+app.get("/api/health", (req, res) => {  
   res.status(200).json({
     success: true,
     message: "Server is running",

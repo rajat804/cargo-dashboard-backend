@@ -21,11 +21,7 @@ const clientSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Create indexes for faster search
-clientSchema.index({ gstNumber: 1 });
-clientSchema.index({ adhaarNumber: 1 });
-clientSchema.index({ panNumber: 1 });
-clientSchema.index({ mobile: 1 });
-clientSchema.index({ name: 1 });
+// Remove the duplicate index definitions - the unique: true in schema already creates indexes
+// No need for separate index() calls
 
 module.exports = mongoose.model('Client', clientSchema);
