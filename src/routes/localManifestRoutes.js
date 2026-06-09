@@ -7,6 +7,8 @@ const {
   getManifestByNo,
   updateManifest,
   updateDestination,
+  updateDispatchDetails,
+  getStockItems,
   cancelManifest,
   restoreManifest,
   deleteManifest,
@@ -19,6 +21,7 @@ router.route('/')
 
 router.get('/stats', getManifestStats);
 router.get('/manifest/:manifestNo', getManifestByNo);
+router.get('/stock', getStockItems);
 
 router.route('/:id')
   .get(getManifestById)
@@ -26,6 +29,7 @@ router.route('/:id')
   .delete(deleteManifest);
 
 router.put('/:id/update-destination', updateDestination);
+router.put('/:id/dispatch', updateDispatchDetails);
 router.put('/:id/cancel', cancelManifest);
 router.put('/:id/restore', restoreManifest);
 

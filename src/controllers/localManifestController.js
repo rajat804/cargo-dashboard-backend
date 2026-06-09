@@ -1,4 +1,6 @@
 const LocalManifest = require('../models/LocalManifest');
+const Booking = require('../models/Booking');
+const BookingManual = require('../models/BookingManual');
 
 // @desc    Create new manifest
 // @route   POST /api/local-manifests
@@ -55,6 +57,11 @@ const getManifests = async (req, res) => {
       toDate,
       branch,
       manifestNo,
+      modeName,
+      driverName,
+      vehicleVendor,
+      vendorCDNo,
+      remarks,
       page = 1,
       limit = 10,
       sortBy = 'createdAt',
@@ -66,11 +73,24 @@ const getManifests = async (req, res) => {
     if (status) query.status = status;
     if (branch && branch !== 'all') query.branch = { $regex: branch, $options: 'i' };
     if (manifestNo) query.manifestNo = { $regex: manifestNo, $options: 'i' };
+    if (modeName) query.modeName = { $regex: modeName, $options: 'i' };
+    if (driverName) query.driverName = { $regex: driverName, $options: 'i' };
+    if (vehicleVendor) query.vehicleVendor = { $regex: vehicleVendor, $options: 'i' };
+    if (vendorCDNo) query.vendorCDNo = { $regex: vendorCDNo, $options: 'i' };
+    if (remarks) query.remarks = { $regex: remarks, $options: 'i' };
     
     if (fromDate || toDate) {
       query.date = {};
-      if (fromDate) query.date.$gte = new Date(fromDate);
-      if (toDate) query.date.$lte = new Date(toDate);
+      if (fromDate) {
+        const startDate = new Date(fromDate);
+        startDate.setHours(0, 0, 0, 0);
+        query.date.$gte = startDate;
+      }
+      if (toDate) {
+        const endDate = new Date(toDate);
+        endDate.setHours(23, 59, 59, 999);
+        query.date.$lte = endDate;
+      }
     }
     
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -84,16 +104,6 @@ const getManifests = async (req, res) => {
       LocalManifest.countDocuments(query)
     ]);
     
-    // Calculate totals for active manifests
-    let totalPckgs = 0;
-    let totalWeight = 0;
-    
-    if (status === 'active' || !status) {
-      const activeManifests = await LocalManifest.find({ status: 'active' });
-      totalPckgs = activeManifests.reduce((sum, m) => sum + (m.noOfPckgs || 0), 0);
-      totalWeight = activeManifests.reduce((sum, m) => sum + (m.grossWeight || 0), 0);
-    }
-    
     res.status(200).json({
       success: true,
       data: manifests,
@@ -102,10 +112,6 @@ const getManifests = async (req, res) => {
         limit: parseInt(limit),
         total,
         pages: Math.ceil(total / parseInt(limit))
-      },
-      stats: {
-        totalPckgs,
-        totalWeight
       }
     });
   } catch (error) {
@@ -250,6 +256,155 @@ const updateDestination = async (req, res) => {
     });
   } catch (error) {
     console.error('Update destination error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Update dispatch details (assigned GRs)
+// @route   PUT /api/local-manifests/:id/dispatch
+const updateDispatchDetails = async (req, res) => {
+  try {
+    const { dispatchedPckgs, dispatchedWt, assignedGRs } = req.body;
+    
+    const manifest = await LocalManifest.findById(req.params.id);
+    
+    if (!manifest) {
+      return res.status(404).json({
+        success: false,
+        message: 'Manifest not found'
+      });
+    }
+    
+    const updateData = {
+      updatedAt: new Date()
+    };
+    
+    if (dispatchedPckgs !== undefined) updateData.noOfPckgs = dispatchedPckgs;
+    if (dispatchedWt !== undefined) updateData.grossWeight = dispatchedWt;
+    if (assignedGRs !== undefined) updateData.assignedGRs = assignedGRs;
+    
+    const updatedManifest = await LocalManifest.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+    
+    res.status(200).json({
+      success: true,
+      data: updatedManifest,
+      message: 'Dispatch details updated successfully'
+    });
+  } catch (error) {
+    console.error('Update dispatch details error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Get stock items (available GRs not assigned to any manifest)
+// @route   GET /api/local-manifests/stock
+const getStockItems = async (req, res) => {
+  try {
+    const { branch, destination, asOnDate } = req.query;
+    
+    // Get all active manifests to find assigned GRs
+    const activeManifests = await LocalManifest.find({ status: 'active' });
+    
+    // Collect all assigned GR IDs
+    const assignedGRIds = new Set();
+    activeManifests.forEach(manifest => {
+      if (manifest.assignedGRs && manifest.assignedGRs.length > 0) {
+        manifest.assignedGRs.forEach(gr => {
+          assignedGRIds.add(gr.bookingId);
+        });
+      }
+    });
+    
+    // Build query for bookings
+    const query = { status: 'active' };
+    
+    // Add filters
+    if (branch && branch !== 'ALL' && branch !== 'all') {
+      query.bookingFrom = branch;
+    }
+    
+    if (destination && destination !== 'ALL' && destination !== 'all') {
+      query.destination = destination;
+    }
+    
+    if (asOnDate) {
+      const date = new Date(asOnDate);
+      date.setHours(0, 0, 0, 0);
+      query.bookingDate = { $lte: date };
+    }
+    
+    // Exclude already assigned GRs
+    if (assignedGRIds.size > 0) {
+      query._id = { $nin: Array.from(assignedGRIds) };
+    }
+    
+    // Fetch from both Computerized and Manual bookings
+    const [computerizedBookings, manualBookings] = await Promise.all([
+      Booking.find(query).lean(),
+      BookingManual.find(query).lean()
+    ]);
+    
+    // Transform bookings to stock items format
+    const stockItems = [];
+    
+    computerizedBookings.forEach(booking => {
+      stockItems.push({
+        id: booking._id,
+        grNo: booking.grNo,
+        grDate: booking.bookingDate,
+        origin: booking.bookingFrom,
+        destination: booking.destination,
+        consignor: booking.consignorName,
+        consignee: booking.consigneeName,
+        toPay: booking.totalFreight?.toString() || '0',
+        paid: '0',
+        tbb: booking.totalFreight?.toString() || '0',
+        stockPckgs: booking.totalPckgs || 0,
+        selected: false,
+        bookingType: 'computerized',
+        bookingId: booking._id
+      });
+    });
+    
+    manualBookings.forEach(booking => {
+      stockItems.push({
+        id: booking._id,
+        grNo: booking.grNo,
+        grDate: booking.bookingDate,
+        origin: booking.bookingFrom,
+        destination: booking.destination,
+        consignor: booking.consignorName,
+        consignee: booking.consigneeName,
+        toPay: booking.totalFreight?.toString() || '0',
+        paid: '0',
+        tbb: booking.totalFreight?.toString() || '0',
+        stockPckgs: booking.totalPckgs || 0,
+        selected: false,
+        bookingType: 'manual',
+        bookingId: booking._id
+      });
+    });
+    
+    // Sort by GR date (newest first)
+    stockItems.sort((a, b) => new Date(b.grDate) - new Date(a.grDate));
+    
+    res.status(200).json({
+      success: true,
+      data: stockItems,
+      total: stockItems.length
+    });
+  } catch (error) {
+    console.error('Get stock items error:', error);
     res.status(500).json({
       success: false,
       message: error.message
@@ -418,6 +573,8 @@ module.exports = {
   getManifestByNo,
   updateManifest,
   updateDestination,
+  updateDispatchDetails,
+  getStockItems,
   cancelManifest,
   restoreManifest,
   deleteManifest,

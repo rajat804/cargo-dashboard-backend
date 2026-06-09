@@ -1,5 +1,24 @@
 const mongoose = require('mongoose');
 
+// Assigned GR Schema
+const assignedGRSchema = new mongoose.Schema({
+  id: { type: String, required: true },
+  grNo: { type: String, required: true },
+  grDate: { type: Date, required: true },
+  consignor: { type: String, required: true },
+  consignee: { type: String, required: true },
+  destination: { type: String, required: true },
+  toPay: { type: Number, default: 0 },
+  paid: { type: Number, default: 0 },
+  tbb: { type: Number, default: 0 },
+  bookedPckgs: { type: Number, default: 0 },
+  stockPckgs: { type: Number, default: 0 },
+  dispatchedPckgs: { type: Number, default: 0 },
+  weight: { type: Number, default: 0 },
+  bookingType: { type: String, enum: ['computerized', 'manual'], default: 'computerized' },
+  bookingId: { type: String, required: true }
+}, { _id: false });
+
 const localManifestSchema = new mongoose.Schema({
   manifestNo: { 
     type: String, 
@@ -84,6 +103,8 @@ const localManifestSchema = new mongoose.Schema({
     enum: ['active', 'cancelled'], 
     default: 'active' 
   },
+  // New field for assigned GRs
+  assignedGRs: [assignedGRSchema],
   createdAt: { 
     type: Date, 
     default: Date.now 
