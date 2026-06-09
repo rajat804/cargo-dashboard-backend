@@ -312,6 +312,9 @@ const getStockItems = async (req, res) => {
   try {
     const { branch, destination, asOnDate } = req.query;
     
+    console.log('=== GET STOCK ITEMS ===');
+    console.log('Filters:', { branch, destination, asOnDate });
+    
     // Get all active manifests to find assigned GRs
     const activeManifests = await LocalManifest.find({ status: 'active' });
     
@@ -325,22 +328,29 @@ const getStockItems = async (req, res) => {
       }
     });
     
-    // Build query for bookings
+    console.log('Assigned GR IDs count:', assignedGRIds.size);
+    
+    // Build query for bookings - FIX: Don't filter by status for stock items
+    // We want all active bookings (status: 'active')
     const query = { status: 'active' };
     
     // Add filters
-    if (branch && branch !== 'ALL' && branch !== 'all') {
+    if (branch && branch !== 'ALL' && branch !== 'all' && branch !== '') {
       query.bookingFrom = branch;
+      console.log('Filtering by branch:', branch);
     }
     
-    if (destination && destination !== 'ALL' && destination !== 'all') {
+    if (destination && destination !== 'ALL' && destination !== 'all' && destination !== '') {
       query.destination = destination;
+      console.log('Filtering by destination:', destination);
     }
     
     if (asOnDate) {
       const date = new Date(asOnDate);
-      date.setHours(0, 0, 0, 0);
+      // Set to end of day to include all bookings up to that date
+      date.setHours(23, 59, 59, 999);
       query.bookingDate = { $lte: date };
+      console.log('Filtering by date (up to):', date);
     }
     
     // Exclude already assigned GRs
@@ -348,55 +358,73 @@ const getStockItems = async (req, res) => {
       query._id = { $nin: Array.from(assignedGRIds) };
     }
     
+    console.log('MongoDB Query for bookings:', JSON.stringify(query, null, 2));
+    
     // Fetch from both Computerized and Manual bookings
     const [computerizedBookings, manualBookings] = await Promise.all([
       Booking.find(query).lean(),
       BookingManual.find(query).lean()
     ]);
     
+    console.log(`Found ${computerizedBookings.length} computerized bookings`);
+    console.log(`Found ${manualBookings.length} manual bookings`);
+    
+    // Log found GRs for debugging
+    if (manualBookings.length > 0) {
+      console.log('Manual GRs found:', manualBookings.map(b => ({ grNo: b.grNo, bookingFrom: b.bookingFrom, destination: b.destination, totalPckgs: b.totalPckgs })));
+    }
+    
     // Transform bookings to stock items format
     const stockItems = [];
     
     computerizedBookings.forEach(booking => {
-      stockItems.push({
-        id: booking._id,
-        grNo: booking.grNo,
-        grDate: booking.bookingDate,
-        origin: booking.bookingFrom,
-        destination: booking.destination,
-        consignor: booking.consignorName,
-        consignee: booking.consigneeName,
-        toPay: booking.totalFreight?.toString() || '0',
-        paid: '0',
-        tbb: booking.totalFreight?.toString() || '0',
-        stockPckgs: booking.totalPckgs || 0,
-        selected: false,
-        bookingType: 'computerized',
-        bookingId: booking._id
-      });
+      // Only include if it has packages
+      if ((booking.totalPckgs || 0) > 0) {
+        stockItems.push({
+          id: booking._id,
+          grNo: booking.grNo,
+          grDate: booking.bookingDate,
+          origin: booking.bookingFrom,
+          destination: booking.destination,
+          consignor: booking.consignorName,
+          consignee: booking.consigneeName,
+          toPay: booking.totalFreight?.toString() || '0',
+          paid: '0',
+          tbb: booking.totalFreight?.toString() || '0',
+          stockPckgs: booking.totalPckgs || 0,
+          selected: false,
+          bookingType: 'computerized',
+          bookingId: booking._id
+        });
+      }
     });
     
     manualBookings.forEach(booking => {
-      stockItems.push({
-        id: booking._id,
-        grNo: booking.grNo,
-        grDate: booking.bookingDate,
-        origin: booking.bookingFrom,
-        destination: booking.destination,
-        consignor: booking.consignorName,
-        consignee: booking.consigneeName,
-        toPay: booking.totalFreight?.toString() || '0',
-        paid: '0',
-        tbb: booking.totalFreight?.toString() || '0',
-        stockPckgs: booking.totalPckgs || 0,
-        selected: false,
-        bookingType: 'manual',
-        bookingId: booking._id
-      });
+      // Only include if it has packages
+      if ((booking.totalPckgs || 0) > 0) {
+        stockItems.push({
+          id: booking._id,
+          grNo: booking.grNo,
+          grDate: booking.bookingDate,
+          origin: booking.bookingFrom,
+          destination: booking.destination,
+          consignor: booking.consignorName,
+          consignee: booking.consigneeName,
+          toPay: booking.totalFreight?.toString() || '0',
+          paid: '0',
+          tbb: booking.totalFreight?.toString() || '0',
+          stockPckgs: booking.totalPckgs || 0,
+          selected: false,
+          bookingType: 'manual',
+          bookingId: booking._id
+        });
+      }
     });
     
     // Sort by GR date (newest first)
     stockItems.sort((a, b) => new Date(b.grDate) - new Date(a.grDate));
+    
+    console.log(`Total stock items returned: ${stockItems.length}`);
     
     res.status(200).json({
       success: true,
