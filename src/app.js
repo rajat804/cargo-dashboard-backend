@@ -15,6 +15,7 @@ const localManifestRoutes = require('./routes/localManifestRoutes');
 const longRouteManifestRoutes = require('./routes/longRouteManifestRoutes');
 const lorryHireChallanRoutes = require('./routes/lorryHireChallanRoutes');
 const authRoutes = require('./routes/authRoutes');
+const goodsArrivalRoutes = require('./routes/goodsArrivalRoutes');
 
 
 // Middleware
@@ -47,6 +48,8 @@ app.use('/api/local-manifests', localManifestRoutes);
 app.use('/api/long-route-manifests', longRouteManifestRoutes);
 app.use('/api/lorry-hire-challans', lorryHireChallanRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/goods-arrival', goodsArrivalRoutes);
+
 
 
 

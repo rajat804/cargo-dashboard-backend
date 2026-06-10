@@ -1,3 +1,4 @@
+// models/LocalManifest.js
 const mongoose = require('mongoose');
 
 // Assigned GR Schema
@@ -103,7 +104,17 @@ const localManifestSchema = new mongoose.Schema({
     enum: ['active', 'cancelled'], 
     default: 'active' 
   },
-  // New field for assigned GRs
+  // FIX: Add manifestStatus field for arrival tracking
+  manifestStatus: { 
+    type: String, 
+    enum: ['ACTIVE', 'IN_TRANSIT', 'DISPATCHED', 'ARRIVED', 'DELIVERED'],
+    default: 'ACTIVE'
+  },
+  // FIX: Add actualArrivalDate field
+  actualArrivalDate: { 
+    type: Date 
+  },
+  // Assigned GRs
   assignedGRs: [assignedGRSchema],
   createdAt: { 
     type: Date, 
@@ -112,23 +123,50 @@ const localManifestSchema = new mongoose.Schema({
   updatedAt: { 
     type: Date, 
     default: Date.now 
-  }
+  },
+  // Reference to Goods Arrival
+  goodsArrivalRef: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'GoodsArrival'
+  },
 }, {
   timestamps: true
 });
 
-// Generate Manifest Number before save
+// FIX: Manifest number generation with retry logic to avoid race conditions
 localManifestSchema.pre('save', async function(next) {
   if (!this.manifestNo) {
-    try {
-      const count = await mongoose.model('LocalManifest').countDocuments();
-      this.manifestNo = `I${String(count + 1).padStart(9, '0')}`;
-      console.log('Generated Manifest No:', this.manifestNo);
-    } catch (error) {
-      console.error('Error generating manifest number:', error);
-      // Fallback to timestamp based number
+    let attempts = 0;
+    const maxAttempts = 3;
+    
+    while (attempts < maxAttempts) {
+      try {
+        // Use timestamp + random suffix for uniqueness
+        const timestamp = Date.now();
+        const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+        const newManifestNo = `I${timestamp}${random}`.slice(0, 15); // Keep within reasonable length
+        
+        // Check if manifest number already exists
+        const existing = await mongoose.model('LocalManifest').findOne({ manifestNo: newManifestNo });
+        if (!existing) {
+          this.manifestNo = newManifestNo;
+          break;
+        }
+        attempts++;
+      } catch (error) {
+        attempts++;
+        if (attempts === maxAttempts) {
+          // Fallback to timestamp only
+          this.manifestNo = `I${Date.now()}`;
+        }
+      }
+    }
+    
+    if (!this.manifestNo) {
       this.manifestNo = `I${Date.now()}`;
     }
+    
+    console.log('Generated Manifest No:', this.manifestNo);
   }
   next();
 });
