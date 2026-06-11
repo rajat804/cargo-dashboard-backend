@@ -3,7 +3,7 @@ const cors = require("cors");
 const morgan = require("morgan");
 const helmet = require("helmet");
 const path = require("path");
-
+const dns = require("dns");
 // Routes
 const bookingRoutes = require("./routes/bookingRoutes");
 const clientRoutes = require("./routes/clientRoutes");
@@ -20,6 +20,8 @@ const goodsArrivalRoutes = require('./routes/goodsArrivalRoutes');
 
 // Middleware
 const errorHandler = require("./middleware/errorHandler");
+
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
 
 const app = express();
 
@@ -69,9 +71,9 @@ app.get("/", (req, res) => {
   });
 });
 
-// app.listen(5000, () => {
-//   console.log("Server is running on port 5000");
-// });
+app.listen(5000, () => {
+  console.log("Server is running on port 5000");
+});
 // 404
 app.use((req, res) => {
   res.status(404).json({
