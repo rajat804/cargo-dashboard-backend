@@ -103,7 +103,7 @@ const bookingSchema = new mongoose.Schema({
   goodsItems: [goodsItemSchema],
   invoices: [invoiceItemSchema],
   
-  // NEW FIELDS FOR FREIGHT CALCULATION
+  // Freight Calculation Fields
   freightRate: { type: Number, default: 0 },
   extraCharges: [extraChargeSchema],
   gstPaidBy: { type: String, default: 'CONSIGNEE' },
@@ -114,10 +114,10 @@ const bookingSchema = new mongoose.Schema({
   totalAmount: { type: Number, default: 0 },
   balanceAmount: { type: Number, default: 0 },
   
-  // NEW FIELDS FOR USER TRACKING
-  createdBy: { type: String, default: '' },      // User ID who created the booking
-  createdByBranch: { type: String, default: '' }, // Branch selected at login
-  userName: { type: String, default: '' },        // User's name for Self selection
+  // User Tracking
+  createdBy: { type: String, default: '' },
+  createdByBranch: { type: String, default: '' },
+  userName: { type: String, default: '' },
   
   // Status
   status: { type: String, enum: ['active', 'cancelled'], default: 'active' },
@@ -134,10 +134,19 @@ const bookingSchema = new mongoose.Schema({
   detentionDays: { type: Number, default: 0 },
   detentionAmount: { type: Number, default: 0 },
   
+  // ========== DAMAGE/MISSING FIELDS - DIRECT STORAGE ==========
+  damageType: { type: [String], default: [] },
+  damageReason: { type: String, default: '' },
+  damageOtherRemark: { type: String, default: '' },
+  damagePhotos: { type: [String], default: [] },
+  voiceNoteUrl: { type: String, default: '' },
+  voiceNoteDuration: { type: Number, default: 0 },
+  
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 }, {
-  timestamps: true
+  timestamps: true,
+  strict: false  // This allows saving fields not defined in schema
 });
 
 // Generate GR Number before save
