@@ -1,5 +1,4 @@
 const Booking = require('../models/Booking');
-const cloudinary = require('../config/cloudinary');
 
 // Create Booking
 const createBooking = async (req, res) => {
@@ -7,27 +6,20 @@ const createBooking = async (req, res) => {
     const bookingData = req.body;
     
     console.log("Received booking data:", {
-      hasDamageType: !!bookingData.damageType,
-      hasDamageReason: !!bookingData.damageReason,
-      hasDamagePhotos: !!(bookingData.damagePhotos && bookingData.damagePhotos.length),
-      hasVoiceNote: !!bookingData.voiceNoteUrl,
-      remarks: bookingData.remarks
+      damageType: bookingData.damageType,
+      damageReason: bookingData.damageReason,
+      damagePackageCount: bookingData.damagePackageCount,
+      damagePhotosCount: bookingData.damagePhotos?.length,
+      voiceNoteUrl: bookingData.voiceNoteUrl ? "Present" : "Absent"
     });
-    
-    // Frontend se direct fields aa rahe hain, waise hi save karo
-    // No conversion needed - schema mein direct fields hain
     
     const booking = new Booking(bookingData);
     await booking.save();
     
-    console.log("Booking saved successfully:", {
+    console.log("Booking saved:", {
       id: booking._id,
       grNo: booking.grNo,
-      damageType: booking.damageType,
-      damageReason: booking.damageReason,
-      damagePhotosCount: booking.damagePhotos?.length || 0,
-      voiceNoteUrl: booking.voiceNoteUrl ? "Present" : "Absent",
-      voiceNoteDuration: booking.voiceNoteDuration
+      damagePackageCount: booking.damagePackageCount
     });
     
     res.status(201).json({
@@ -148,12 +140,6 @@ const getBookingByGrNo = async (req, res) => {
 const updateBooking = async (req, res) => {
   try {
     const bookingData = req.body;
-    
-    console.log("Updating booking:", {
-      id: req.params.id,
-      hasDamageType: !!bookingData.damageType,
-      hasDamagePhotos: !!(bookingData.damagePhotos && bookingData.damagePhotos.length)
-    });
     
     const booking = await Booking.findByIdAndUpdate(
       req.params.id,
