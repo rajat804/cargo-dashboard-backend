@@ -134,10 +134,11 @@ const bookingSchema = new mongoose.Schema({
   detentionDays: { type: Number, default: 0 },
   detentionAmount: { type: Number, default: 0 },
   
-  // ========== DAMAGE/MISSING FIELDS - DIRECT STORAGE ==========
+  // ========== DAMAGE/MISSING FIELDS ==========
   damageType: { type: [String], default: [] },
   damageReason: { type: String, default: '' },
   damageOtherRemark: { type: String, default: '' },
+  damagePackageCount: { type: Number, default: 0 },  // NEW FIELD
   damagePhotos: { type: [String], default: [] },
   voiceNoteUrl: { type: String, default: '' },
   voiceNoteDuration: { type: Number, default: 0 },
@@ -146,7 +147,7 @@ const bookingSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 }, {
   timestamps: true,
-  strict: false  // This allows saving fields not defined in schema
+  strict: false
 });
 
 // Generate GR Number before save
