@@ -28,6 +28,29 @@ const extraChargeSchema = new mongoose.Schema({
   amount: { type: Number, default: 0 }
 });
 
+// ========== NEW: Damage Photo Schema ==========
+const damagePhotoSchema = new mongoose.Schema({
+  url: { type: String, default: '' },
+  base64: { type: String, default: '' }
+});
+
+// ========== NEW: Damage/Missing Schema ==========
+const damageMissingSchema = new mongoose.Schema({
+  damageType: { 
+    type: [String], 
+    enum: ['damaged', 'missing', 'both'],
+    default: [] 
+  },
+  damageReason: { type: String, default: '' },
+  damageOtherRemark: { type: String, default: '' },
+  damagePackageCount: { type: Number, default: 0 },
+  damagePhotos: [{ type: String }], // Array of base64 strings or URLs
+  voiceNoteUrl: { type: String, default: '' },
+  voiceNoteDuration: { type: Number, default: 0 },
+  voiceNoteBase64: { type: String, default: '' },
+  damageRemark: { type: String, default: '' }
+});
+
 const bookingManualSchema = new mongoose.Schema({
   grNo: { type: String, required: true, unique: true },
   bookingFrom: { type: String, required: true },
@@ -115,9 +138,19 @@ const bookingManualSchema = new mongoose.Schema({
   balanceAmount: { type: Number, default: 0 },
   
   // NEW FIELDS FOR USER TRACKING
-  createdBy: { type: String, default: '' },      // User ID who created the booking
-  createdByBranch: { type: String, default: '' }, // Branch selected at login
-  userName: { type: String, default: '' },        // User's name for Self selection
+  createdBy: { type: String, default: '' },
+  createdByBranch: { type: String, default: '' },
+  userName: { type: String, default: '' },
+  
+  // ========== NEW: DAMAGE/MISSING FIELDS ==========
+  damageType: { type: [String], enum: ['damaged', 'missing', 'both'], default: [] },
+  damageReason: { type: String, default: '' },
+  damageOtherRemark: { type: String, default: '' },
+  damagePackageCount: { type: Number, default: 0 },
+  damagePhotos: [{ type: String }],
+  voiceNoteUrl: { type: String, default: '' },
+  voiceNoteDuration: { type: Number, default: 0 },
+  damageRemark: { type: String, default: '' },
   
   // Status
   status: { type: String, enum: ['active', 'cancelled'], default: 'active' },
@@ -129,5 +162,12 @@ const bookingManualSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
+
+// Create index for better search performance
+bookingManualSchema.index({ bookingFrom: 1 });
+bookingManualSchema.index({ status: 1 });
+bookingManualSchema.index({ bookingDate: 1 });
+bookingManualSchema.index({ consignorName: 1 });
+bookingManualSchema.index({ consigneeName: 1 });
 
 module.exports = mongoose.model('BookingManual', bookingManualSchema);
