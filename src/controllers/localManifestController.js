@@ -1,9 +1,15 @@
-// controllers/localManifestController.js
 const LocalManifest = require('../models/LocalManifest');
 const Booking = require('../models/Booking');
 const BookingManual = require('../models/BookingManual');
 const mongoose = require('mongoose');
 const { Types: { ObjectId } } = mongoose;
+
+// Helper function to calculate totals
+const calculateManifestTotals = (assignedGRs) => {
+  const totalPckgs = assignedGRs.reduce((sum, gr) => sum + (gr.dispatchedPckgs || 0), 0);
+  const totalWeight = assignedGRs.reduce((sum, gr) => sum + (gr.weight || 0), 0);
+  return { totalPckgs, totalWeight };
+};
 
 // @desc    Create new manifest
 // @route   POST /api/local-manifests
@@ -13,7 +19,6 @@ const createManifest = async (req, res) => {
     
     console.log('Received manifest data:', JSON.stringify(manifestData, null, 2));
     
-    // Validate required fields
     const requiredFields = ['branch', 'toStation', 'modeName', 'driverName', 'loadingPerson'];
     const missingFields = requiredFields.filter(field => !manifestData[field]);
     
@@ -24,11 +29,9 @@ const createManifest = async (req, res) => {
       });
     }
     
-    // Remove autoManifest flag as it's not needed in the model
     const autoManifest = manifestData.autoManifest;
     delete manifestData.autoManifest;
     
-    // If autoManifest is true or manifestNo is not provided, let the model generate it
     if (autoManifest === true || !manifestData.manifestNo) {
       delete manifestData.manifestNo;
     }
@@ -178,7 +181,7 @@ const getManifestByNo = async (req, res) => {
   }
 };
 
-// @desc    Update manifest
+// @desc    Update manifest (basic info)
 // @route   PUT /api/local-manifests/:id
 const updateManifest = async (req, res) => {
   try {
@@ -191,7 +194,6 @@ const updateManifest = async (req, res) => {
       });
     }
     
-    // Don't allow updating manifest number
     delete req.body.manifestNo;
     delete req.body.autoManifest;
     
@@ -219,13 +221,7 @@ const updateManifest = async (req, res) => {
 // @route   PUT /api/local-manifests/:id/update-destination
 const updateDestination = async (req, res) => {
   try {
-    const { 
-      newDestination, 
-      newVehicleNo, 
-      newDriver, 
-      newVendor,
-      newDriverMobile 
-    } = req.body;
+    const { newDestination, newVehicleNo, newDriver, newVendor, newDriverMobile } = req.body;
     
     const manifest = await LocalManifest.findById(req.params.id);
     
@@ -236,9 +232,7 @@ const updateDestination = async (req, res) => {
       });
     }
     
-    const updateData = {
-      updatedAt: new Date()
-    };
+    const updateData = { updatedAt: new Date() };
     
     if (newDestination) updateData.toStation = newDestination;
     if (newVehicleNo) updateData.vehicleNo = newVehicleNo;
@@ -266,21 +260,14 @@ const updateDestination = async (req, res) => {
   }
 };
 
-// controllers/localManifestController.js - Update this function
-
-// @desc    Update dispatch details (assigned GRs)
+// @desc    Update dispatch details (assigned GRs) - SINGLE FUNCTION ONLY
 // @route   PUT /api/local-manifests/:id/dispatch
-// @desc    Update dispatch details (assigned GRs)
-// @route   PUT /api/local-manifests/:id/dispatch
-// @access  Private
 const updateDispatchDetails = async (req, res) => {
   try {
     const { dispatchedPckgs, dispatchedWt, assignedGRs } = req.body;
     
     console.log('=== UPDATE DISPATCH DETAILS ===');
     console.log('Manifest ID:', req.params.id);
-    console.log('dispatchedPckgs:', dispatchedPckgs);
-    console.log('dispatchedWt:', dispatchedWt);
     console.log('assignedGRs count:', assignedGRs?.length);
     
     const manifest = await LocalManifest.findById(req.params.id);
@@ -292,18 +279,17 @@ const updateDispatchDetails = async (req, res) => {
       });
     }
     
-    const updateData = {
-      updatedAt: new Date()
-    };
+    const updateData = { updatedAt: new Date() };
     
-    if (dispatchedPckgs !== undefined) updateData.noOfPckgs = dispatchedPckgs;
-    if (dispatchedWt !== undefined) updateData.grossWeight = dispatchedWt;
-    
-    // Fix assignedGRs - ensure bookingId is present
     if (assignedGRs !== undefined) {
       const formattedAssignedGRs = assignedGRs.map(gr => {
-        // If bookingId is missing, use id as fallback
         const bookingIdValue = gr.bookingId || gr.id;
+        const maxPackages = gr.bookedPckgs || gr.stockPckgs || 0;
+        const dispatchedPckgsValue = gr.dispatchedPckgs || 0;
+        
+        if (dispatchedPckgsValue > maxPackages) {
+          throw new Error(`Cannot dispatch more than ${maxPackages} packages for GR ${gr.grNo}`);
+        }
         
         return {
           id: bookingIdValue,
@@ -317,7 +303,7 @@ const updateDispatchDetails = async (req, res) => {
           tbb: gr.tbb || 0,
           bookedPckgs: gr.bookedPckgs || 0,
           stockPckgs: gr.stockPckgs || 0,
-          dispatchedPckgs: gr.dispatchedPckgs || 0,
+          dispatchedPckgs: dispatchedPckgsValue,
           weight: gr.weight || 0,
           bookingType: gr.bookingType || 'manual',
           bookingId: bookingIdValue
@@ -325,17 +311,20 @@ const updateDispatchDetails = async (req, res) => {
       });
       
       updateData.assignedGRs = formattedAssignedGRs;
+      updateData.manifestStatus = formattedAssignedGRs.length > 0 ? 'DISPATCHED' : 'ACTIVE';
       
-      // FIX: Update manifestStatus to DISPATCHED if GRs are assigned
-      if (formattedAssignedGRs.length > 0) {
-        updateData.manifestStatus = 'DISPATCHED';
-        console.log(`Manifest status updated to DISPATCHED (${formattedAssignedGRs.length} GRs assigned)`);
-      } else {
-        // If no GRs assigned, keep as ACTIVE
-        updateData.manifestStatus = 'ACTIVE';
-      }
+      const { totalPckgs, totalWeight } = calculateManifestTotals(formattedAssignedGRs);
+      updateData.noOfPckgs = totalPckgs;
+      updateData.grossWeight = totalWeight;
       
-      console.log('Formatted assignedGRs with bookingId:', formattedAssignedGRs.map(g => ({ grNo: g.grNo, bookingId: g.bookingId })));
+      console.log('Updated totals:', { totalPckgs, totalWeight });
+    }
+    
+    if (dispatchedPckgs !== undefined && assignedGRs === undefined) {
+      updateData.noOfPckgs = dispatchedPckgs;
+    }
+    if (dispatchedWt !== undefined && assignedGRs === undefined) {
+      updateData.grossWeight = dispatchedWt;
     }
     
     const updatedManifest = await LocalManifest.findByIdAndUpdate(
@@ -352,13 +341,19 @@ const updateDispatchDetails = async (req, res) => {
   } catch (error) {
     console.error('Update dispatch details error:', error);
     
-    // Handle validation errors specifically
     if (error.name === 'ValidationError') {
       const errors = Object.values(error.errors).map(err => err.message);
       return res.status(400).json({
         success: false,
         message: `Validation failed: ${errors.join(', ')}`,
         details: error.errors
+      });
+    }
+    
+    if (error.message.includes('Cannot dispatch more than')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
       });
     }
     
@@ -378,10 +373,8 @@ const getStockItems = async (req, res) => {
     console.log('=== GET STOCK ITEMS ===');
     console.log('Filters:', { branch, destination, asOnDate });
     
-    // Get all active manifests to find assigned GRs
     const activeManifests = await LocalManifest.find({ status: 'active' });
     
-    // FIX: Collect all assigned bookingIds as strings first
     const assignedBookingIds = new Set();
     activeManifests.forEach(manifest => {
       if (manifest.assignedGRs && manifest.assignedGRs.length > 0) {
@@ -395,40 +388,32 @@ const getStockItems = async (req, res) => {
     
     console.log('Assigned GR IDs count:', assignedBookingIds.size);
     
-    // FIX: Convert string IDs to ObjectIds for proper comparison
     const objectIdArray = Array.from(assignedBookingIds)
       .filter(id => id && ObjectId.isValid(id))
       .map(id => new ObjectId(id));
     
-    // Build query for bookings
     const query = { status: 'active' };
     
-    // Add filters
     if (branch && branch !== 'ALL' && branch !== 'all' && branch !== '') {
       query.bookingFrom = branch;
-      console.log('Filtering by branch:', branch);
     }
     
     if (destination && destination !== 'ALL' && destination !== 'all' && destination !== '') {
       query.destination = { $regex: destination, $options: 'i' };
-      console.log('Filtering by destination:', destination);
     }
     
     if (asOnDate) {
       const date = new Date(asOnDate);
       date.setHours(23, 59, 59, 999);
       query.bookingDate = { $lte: date };
-      console.log('Filtering by date (up to):', date);
     }
     
-    // Exclude already assigned GRs - FIX: Use ObjectId array
     if (objectIdArray.length > 0) {
       query._id = { $nin: objectIdArray };
     }
     
     console.log('MongoDB Query for bookings:', JSON.stringify(query, null, 2));
     
-    // Fetch from both Computerized and Manual bookings
     const [computerizedBookings, manualBookings] = await Promise.all([
       Booking.find(query).lean(),
       BookingManual.find(query).lean()
@@ -437,7 +422,6 @@ const getStockItems = async (req, res) => {
     console.log(`Found ${computerizedBookings.length} computerized bookings`);
     console.log(`Found ${manualBookings.length} manual bookings`);
     
-    // Transform bookings to stock items format
     const stockItems = [];
     
     computerizedBookings.forEach(booking => {
@@ -482,7 +466,6 @@ const getStockItems = async (req, res) => {
       }
     });
     
-    // Sort by GR date (newest first)
     stockItems.sort((a, b) => new Date(b.grDate) - new Date(a.grDate));
     
     console.log(`Total stock items returned: ${stockItems.length}`);
