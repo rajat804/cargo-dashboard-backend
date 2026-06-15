@@ -1,7 +1,7 @@
 // models/LocalManifest.js
 const mongoose = require('mongoose');
 
-// Assigned GR Schema
+// Assigned GR Schema - Updated with validation
 const assignedGRSchema = new mongoose.Schema({
   id: { type: String, required: true },
   grNo: { type: String, required: true },
@@ -14,7 +14,16 @@ const assignedGRSchema = new mongoose.Schema({
   tbb: { type: Number, default: 0 },
   bookedPckgs: { type: Number, default: 0 },
   stockPckgs: { type: Number, default: 0 },
-  dispatchedPckgs: { type: Number, default: 0 },
+  dispatchedPckgs: { 
+    type: Number, 
+    default: 0,
+    validate: {
+      validator: function(value) {
+        return value >= 0 && value <= (this.bookedPckgs || this.stockPckgs || 0);
+      },
+      message: 'Dispatched packages cannot exceed booked/stock packages'
+    }
+  },
   weight: { type: Number, default: 0 },
   bookingType: { type: String, enum: ['computerized', 'manual'], default: 'computerized' },
   bookingId: { type: String, required: true }
