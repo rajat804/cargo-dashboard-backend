@@ -1,12 +1,59 @@
 const BookingManual = require('../models/BookingManual');
 
+// Helper function to calculate freight
+const calculateFreight = (data) => {
+  const manualRates = data.manualRates || false;
+  const freightOn = data.freightOn || 'CHARGE WEIGHT';
+  const freightRate = data.freightRate || 0;
+  const totalChargeWeight = data.totalChargeWeight || 0;
+  const totalActualWeight = data.totalActualWeight || 0;
+  const totalPckgs = data.totalPckgs || 0;
+  
+  let freight = 0;
+  
+  if (manualRates && freightRate > 0) {
+    if (freightOn === 'CHARGE WEIGHT') {
+      freight = totalChargeWeight * freightRate;
+    } else if (freightOn === 'ACTUAL WEIGHT') {
+      freight = totalActualWeight * freightRate;
+    } else if (freightOn === 'PER PACKAGE') {
+      freight = totalPckgs * freightRate;
+    }
+  } else {
+    // Default: ₹5 per kg on charge weight
+    freight = totalChargeWeight * 5;
+  }
+  
+  return Math.round(freight * 100) / 100;
+};
+
+// Helper function to calculate totals
+const calculateTotals = (data) => {
+  const freight = calculateFreight(data);
+  const extraChargesTotal = (data.extraCharges || []).reduce((sum, charge) => sum + (charge.amount || 0), 0);
+  const subTotal = freight + extraChargesTotal;
+  const gstAmount = (subTotal * (data.gstRate || 0)) / 100;
+  const totalAmount = subTotal + gstAmount;
+  const balanceAmount = totalAmount - (data.advanceAmount || 0);
+  
+  return {
+    totalFreight: freight,
+    subTotal: Math.round(subTotal * 100) / 100,
+    gstAmount: Math.round(gstAmount * 100) / 100,
+    totalAmount: Math.round(totalAmount * 100) / 100,
+    balanceAmount: balanceAmount > 0 ? Math.round(balanceAmount * 100) / 100 : 0
+  };
+};
+
 // @desc    Create new manual booking
 // @route   POST /api/bookings-manual
 const createBooking = async (req, res) => {
   try {
     const bookingData = req.body;
     
-    console.log('Received manual booking data:', JSON.stringify(bookingData, null, 2));
+    console.log('=== CREATE BOOKING ===');
+    console.log('GR No:', bookingData.grNo);
+    console.log('Total Charge Weight:', bookingData.totalChargeWeight);
     
     // Validate required fields
     const requiredFields = ['bookingFrom', 'destination', 'consignorName', 'consigneeName', 'bookingType', 'collectionAt', 'serviceProduct', 'deliveryType', 'loadType', 'grNo'];
@@ -28,7 +75,18 @@ const createBooking = async (req, res) => {
       });
     }
     
-    // Add user information from request (if available)
+    // Calculate freight and totals
+    const calculated = calculateTotals(bookingData);
+    bookingData.totalFreight = calculated.totalFreight;
+    bookingData.subTotal = calculated.subTotal;
+    bookingData.gstAmount = calculated.gstAmount;
+    bookingData.totalAmount = calculated.totalAmount;
+    bookingData.balanceAmount = calculated.balanceAmount;
+    
+    console.log('Calculated Freight:', bookingData.totalFreight);
+    console.log('Calculated Total:', bookingData.totalAmount);
+    
+    // Add user information
     if (req.user) {
       bookingData.createdBy = req.user._id || req.user.id;
       bookingData.userName = req.user.name || '';
@@ -53,7 +111,6 @@ const createBooking = async (req, res) => {
 };
 
 // @desc    Get all manual bookings with filters
-// @route   GET /api/bookings-manual
 const getBookings = async (req, res) => {
   try {
     const {
@@ -65,24 +122,17 @@ const getBookings = async (req, res) => {
       consignorName,
       consigneeName,
       page = 1,
-      limit = 10,
+      limit = 100,
       sortBy = 'createdAt',
       sortOrder = 'desc'
     } = req.query;
-    
-    console.log('=== MANUAL BOOKINGS SEARCH ===');
-    console.log('Search params:', { status, fromDate, toDate, grNo, branch });
     
     const query = {};
     
     if (status) query.status = status;
     
-    // FIX: Better GR No search - handles both numeric and alphanumeric
     if (grNo && grNo.trim() !== '') {
-      const searchTerm = grNo.trim();
-      // Use regex for partial matching, case-insensitive
-      query.grNo = { $regex: searchTerm, $options: 'i' };
-      console.log('GR No filter (regex):', query.grNo);
+      query.grNo = { $regex: grNo.trim(), $options: 'i' };
     }
     
     if (branch && branch !== 'all') query.bookingFrom = branch;
@@ -103,28 +153,13 @@ const getBookings = async (req, res) => {
       }
     }
     
-    console.log('MongoDB Query:', JSON.stringify(query, null, 2));
-    
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const sortOptions = { [sortBy]: sortOrder === 'desc' ? -1 : 1 };
     
     const [bookings, total] = await Promise.all([
-      BookingManual.find(query)
-        .sort(sortOptions)
-        .skip(skip)
-        .limit(parseInt(limit)),
+      BookingManual.find(query).sort(sortOptions).skip(skip).limit(parseInt(limit)),
       BookingManual.countDocuments(query)
     ]);
-    
-    console.log(`Found ${bookings.length} manual bookings`);
-    if (bookings.length > 0) {
-      console.log('GR Numbers found:', bookings.map(b => b.grNo));
-    } else {
-      console.log('No bookings found for this search');
-      // Debug: Show all GR numbers in the database
-      const allBookings = await BookingManual.find({ status: 'active' }).limit(10);
-      console.log('Sample GR numbers in DB:', allBookings.map(b => b.grNo));
-    }
     
     res.status(200).json({
       success: true,
@@ -207,13 +242,23 @@ const updateBooking = async (req, res) => {
       });
     }
     
+    const updateData = { ...req.body, updatedAt: new Date() };
+    
+    // Recalculate freight and totals
+    const mergedData = { ...booking.toObject(), ...updateData };
+    const calculated = calculateTotals(mergedData);
+    updateData.totalFreight = calculated.totalFreight;
+    updateData.subTotal = calculated.subTotal;
+    updateData.gstAmount = calculated.gstAmount;
+    updateData.totalAmount = calculated.totalAmount;
+    updateData.balanceAmount = calculated.balanceAmount;
+    
     // Don't allow updating GR number
-    delete req.body.grNo;
-    delete req.body.autoLHC;
+    delete updateData.grNo;
     
     const updatedBooking = await BookingManual.findByIdAndUpdate(
       req.params.id,
-      { ...req.body, updatedAt: new Date() },
+      updateData,
       { new: true, runValidators: true }
     );
     
