@@ -190,16 +190,67 @@ exports.getPendingArrivals = async (req, res) => {
       toDate,
       vehicleNo,
       driverName,
+      manifestNo,
+      _id,
+      search,  // ✅ NEW: Generic search parameter
       page = 1,
       limit = 10
     } = req.query;
 
-    // Build query for manifests not yet arrived
-    let manifestQuery = {
-      status: { $in: ['active'] },
-      manifestStatus: { $in: ['ACTIVE', 'IN_TRANSIT', 'DISPATCHED'] }
-    };
+    console.log("🔍 Searching for manifest:", { manifestNo, _id, search });
 
+    let manifestQuery = {};
+
+    // ✅ SMART SEARCH: If search parameter is provided
+    if (search && search.trim() !== '') {
+      const searchTerm = search.trim();
+      
+      // ✅ Check if it's a valid ObjectId
+      const isValidObjectId = mongoose.Types.ObjectId.isValid(searchTerm);
+      
+      manifestQuery = {
+        $or: [
+          // Search by manifest number (partial match)
+          { manifestNo: { $regex: searchTerm, $options: 'i' } },
+          // Search by LHC number
+          { lhcNo: { $regex: searchTerm, $options: 'i' } },
+          // Search by vehicle number
+          { vehicleNo: { $regex: searchTerm, $options: 'i' } },
+          // Search by driver name
+          { driverName: { $regex: searchTerm, $options: 'i' } },
+          // Search by GR number (in assignedGRs)
+          { 'assignedGRs.grNo': { $regex: searchTerm, $options: 'i' } }
+        ]
+      };
+      
+      // ✅ If valid ObjectId, also search by _id
+      if (isValidObjectId) {
+        manifestQuery.$or.push({ _id: new mongoose.Types.ObjectId(searchTerm) });
+      }
+      
+      // ✅ Also search by manifestNo as exact match
+      manifestQuery.$or.push({ manifestNo: searchTerm });
+      
+    } else {
+      // ✅ If searching by manifestNo OR _id (legacy support)
+      if (manifestNo && manifestNo.trim() !== '') {
+        manifestQuery.manifestNo = { $regex: manifestNo.trim(), $options: 'i' };
+      } else if (_id && _id.trim() !== '') {
+        if (mongoose.Types.ObjectId.isValid(_id.trim())) {
+          manifestQuery._id = new mongoose.Types.ObjectId(_id.trim());
+        } else {
+          manifestQuery.manifestNo = { $regex: _id.trim(), $options: 'i' };
+        }
+      } else {
+        // ✅ Default: Show pending manifests only
+        manifestQuery = {
+          status: { $in: ['active'] },
+          manifestStatus: { $in: ['ACTIVE', 'IN_TRANSIT', 'DISPATCHED'] }
+        };
+      }
+    }
+
+    // ✅ Other filters
     if (branch && branch !== 'ALL') manifestQuery.branch = branch;
     if (despatchFrom && despatchFrom !== 'ALL') manifestQuery.branch = despatchFrom;
     if (modeType && modeType !== 'ALL') manifestQuery.modeCategory = modeType;
@@ -212,12 +263,16 @@ exports.getPendingArrivals = async (req, res) => {
       if (toDate) manifestQuery.date.$lte = new Date(toDate);
     }
 
-    // Exclude manifests that already have arrivals
-    const existingArrivals = await GoodsArrival.find({}, 'manifestNo');
-    const arrivedManifestNos = existingArrivals.map(a => a.manifestNo);
-    if (arrivedManifestNos.length > 0) {
-      manifestQuery.manifestNo = { $nin: arrivedManifestNos };
+    // ✅ If NOT searching by specific ID, exclude already arrived
+    if (!manifestNo && !_id && !search) {
+      const existingArrivals = await GoodsArrival.find({}, 'manifestNo');
+      const arrivedManifestNos = existingArrivals.map(a => a.manifestNo);
+      if (arrivedManifestNos.length > 0) {
+        manifestQuery.manifestNo = { $nin: arrivedManifestNos };
+      }
     }
+
+    console.log("📊 MongoDB Query:", JSON.stringify(manifestQuery, null, 2));
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
@@ -229,6 +284,8 @@ exports.getPendingArrivals = async (req, res) => {
         .lean(),
       LocalManifest.countDocuments(manifestQuery)
     ]);
+
+    console.log("📦 Manifests found:", manifests.length);
 
     // Transform to pending arrival format
     const pendingArrivals = manifests.map(manifest => ({
@@ -272,7 +329,6 @@ exports.getPendingArrivals = async (req, res) => {
     });
   }
 };
-
 // ============================================
 // GET ALL GOODS ARRIVALS
 // ============================================
@@ -766,6 +822,78 @@ exports.getGoodsArrivalStats = async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to fetch stats',
+      error: error.message
+    });
+  }
+};
+
+exports.searchManifestByGR = async (req, res) => {
+  try {
+    const { grNo } = req.query;
+    
+    if (!grNo || grNo.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'GR number is required'
+      });
+    }
+
+    console.log("🔍 Searching manifest by GR:", grNo);
+
+    // ✅ Search in LocalManifest where assignedGRs contains this GR
+    const manifest = await LocalManifest.findOne({
+      'assignedGRs.grNo': { $regex: grNo.trim(), $options: 'i' }
+    }).lean();
+
+    if (!manifest) {
+      return res.status(404).json({
+        success: false,
+        message: `No manifest found for GR: ${grNo}`
+      });
+    }
+
+    // Check if already arrived
+    const existingArrival = await GoodsArrival.findOne({ 
+      manifestNo: manifest.manifestNo 
+    });
+
+    const pendingArrival = {
+      _id: manifest._id,
+      manifestNo: manifest.manifestNo,
+      manifestDate: manifest.date || manifest.createdAt,
+      branch: manifest.branch,
+      fromStation: manifest.branch,
+      toStation: manifest.toStation,
+      divisionName: manifest.divisionName || '',
+      modeName: manifest.modeName || manifest.vehicleNo || '',
+      modeCategory: manifest.modeCategory || 'SURFACE',
+      category: manifest.modeCategory || 'SURFACE',
+      lhcNo: manifest.lhcNo || '',
+      vehicleNo: manifest.vehicleNo || '',
+      driverName: manifest.driverName || '',
+      driverMobile: manifest.driverMobile || '',
+      noOfPickups: manifest.noOfPckgs || 0,
+      grossWeight: manifest.grossWeight || 0,
+      assignedGRs: manifest.assignedGRs || [],
+      arrivalStatus: existingArrival ? 'ALREADY_ARRIVED' : 'PENDING'
+    };
+
+    res.status(200).json({
+      success: true,
+      data: [pendingArrival],
+      pagination: {
+        page: 1,
+        limit: 1,
+        total: 1,
+        pages: 1
+      }
+    });
+
+  } catch (error) {
+    console.error('Search Manifest by GR Error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to search manifest by GR',
       error: error.message
     });
   }
