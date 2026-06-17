@@ -14,7 +14,9 @@ const {
   restoreGoodsArrival,
   printGoodsArrival,
   exportGoodsArrivals,
-  getGoodsArrivalStats
+  getGoodsArrivalStats,
+  // searchManifest,
+  searchManifestByGR
 } = require('../controllers/goodsArrivalController');
 
 // ============================================
@@ -30,10 +32,16 @@ router.get('/pending', getPendingArrivals);
 // Export route - must be before /:id
 router.get('/export', exportGoodsArrivals);
 
+
+
 // Main CRUD routes
 router.route('/')
   .get(getGoodsArrivals)
   .post(createGoodsArrival);
+
+
+// Search manifest by any field (number, ID, etc.)
+router.get('/search-by-gr', searchManifestByGR);
 
 // Routes with ID parameter
 router.route('/:id')
