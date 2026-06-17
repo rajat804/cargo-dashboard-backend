@@ -1,4 +1,6 @@
-// routes/goodsArrivalRoutes.js
+// ============================================
+// src/routes/goodsArrivalRoutes.js
+// ============================================
 const express = require('express');
 const router = express.Router();
 const {
@@ -8,22 +10,30 @@ const {
   getGoodsArrivalById,
   updateGoodsArrival,
   deleteGoodsArrival,
+  cancelGoodsArrival,
+  restoreGoodsArrival,
   printGoodsArrival,
-  exportGoodsArrivals
+  exportGoodsArrivals,
+  getGoodsArrivalStats
 } = require('../controllers/goodsArrivalController');
-const { protect } = require('../middleware/auth');
 
-// All routes require authentication
-router.use(protect);
+// ============================================
+// PUBLIC ROUTES (within authenticated context)
+// ============================================
 
-// Public routes (within authenticated context)
+// Stats route - must be before /:id
+router.get('/stats', getGoodsArrivalStats);
+
+// Pending arrivals route - must be before /:id
+router.get('/pending', getPendingArrivals);
+
+// Export route - must be before /:id
+router.get('/export', exportGoodsArrivals);
+
+// Main CRUD routes
 router.route('/')
   .get(getGoodsArrivals)
   .post(createGoodsArrival);
-
-// Pending arrivals endpoint - must be before /:id
-router.get('/pending', getPendingArrivals);
-router.get('/export', exportGoodsArrivals);
 
 // Routes with ID parameter
 router.route('/:id')
@@ -31,6 +41,11 @@ router.route('/:id')
   .put(updateGoodsArrival)
   .delete(deleteGoodsArrival);
 
+// Cancel and restore routes
+router.patch('/:id/cancel', cancelGoodsArrival);
+router.patch('/:id/restore', restoreGoodsArrival);
+
+// Print route
 router.get('/:id/print', printGoodsArrival);
 
 module.exports = router;
