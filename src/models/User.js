@@ -1,26 +1,46 @@
 const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');  // Make sure this is here
+const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
   name: {
     type: String,
-    required: true
+    required: true,
+    trim: true
   },
   email: {
     type: String,
     required: true,
     unique: true,
-    lowercase: true
+    lowercase: true,
+    trim: true
   },
   password: {
     type: String,
-    required: true
+    required: true,
+    minlength: 6
+  },
+  phone: {
+    type: String,
+    default: ''
+  },
+  address: {
+    street: { type: String, default: '' },
+    city: { type: String, default: '' },
+    state: { type: String, default: '' },
+    pincode: { type: String, default: '' },
+    country: { type: String, default: 'India' }
   },
   role: {
     type: String,
     enum: ['admin', 'manager', 'user', 'viewer'],
     default: 'user'
   },
+  // ✅ ADD THIS - Modules field
+modules: {
+  type: [String],
+  enum: ['Operations', 'Accounts', 'Administrator', 'Inventory', 'Network'],
+  default: ['Operations', 'Accounts', 'Administrator', 'Inventory', 'Network']
+},
   branch: {
     type: String,
     default: ''
@@ -34,20 +54,58 @@ const userSchema = new mongoose.Schema({
     default: true
   },
   lastLogin: {
-    type: Date
+    type: Date,
+    default: null
+  },
+  lastActivity: {
+    type: Date,
+    default: null
   },
   lastLoginBranch: {
     type: String,
     default: ''
   },
-  createdAt: {
-    type: Date,
-    default: Date.now
+  profileImage: {
+    type: String,
+    default: null
   },
-  updatedAt: {
-    type: Date,
-    default: Date.now
-  }
+  preferences: {
+    notifications: {
+      type: Boolean,
+      default: true
+    },
+    language: {
+      type: String,
+      default: 'en'
+    }
+  },
+  sessions: [{
+    sessionId: {
+      type: String,
+      required: true
+    },
+    loginTime: {
+      type: Date,
+      default: Date.now
+    },
+    lastActivity: {
+      type: Date,
+      default: Date.now
+    },
+    isActive: {
+      type: Boolean,
+      default: true
+    },
+    role: {
+      type: String,
+      enum: ['admin', 'manager', 'user', 'viewer'],
+      default: 'user'
+    },
+    deviceInfo: {
+      type: String,
+      default: 'Unknown'
+    }
+  }]
 }, {
   timestamps: true
 });
