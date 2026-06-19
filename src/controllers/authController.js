@@ -52,10 +52,8 @@ const loginUser = async (req, res) => {
       });
     }
     
-    // Generate unique session ID for this login
     const sessionId = generateSessionId();
     
-    // Add session to user's sessions array
     if (!user.sessions) {
       user.sessions = [];
     }
@@ -83,6 +81,9 @@ const loginUser = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        branch: user.branch || '',
+        branchCode: user.branchCode || '',
+        modules: user.modules || [],  // ✅ ADD THIS
         token: token,
         sessionId: sessionId,
         userType: 'admin'
@@ -366,10 +367,8 @@ const userLogin = async (req, res) => {
       });
     }
 
-    // Generate unique session ID for this login
     const sessionId = generateSessionId();
     
-    // Add session to user's sessions array
     if (!user.sessions) {
       user.sessions = [];
     }
@@ -396,9 +395,12 @@ const userLogin = async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
-        phone: user.phone,
-        address: user.address,
+        phone: user.phone || '',
+        address: user.address || {},
         role: user.role,
+        branch: user.branch || '',
+        branchCode: user.branchCode || '',
+        modules: user.modules || [],  // ✅ ADD THIS
         token: token,
         sessionId: sessionId,
         userType: 'user'
