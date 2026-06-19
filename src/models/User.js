@@ -36,11 +36,11 @@ const userSchema = new mongoose.Schema({
     default: 'user'
   },
   // ✅ ADD THIS - Modules field
-modules: {
-  type: [String],
-  enum: ['Operations', 'Accounts', 'Administrator', 'Inventory', 'Network'],
-  default: ['Operations', 'Accounts', 'Administrator', 'Inventory', 'Network']
-},
+  modules: {
+    type: [String],
+    enum: ['Operations', 'Accounts', 'Administrator', 'Inventory', 'Network'],
+    default: ['Operations', 'Accounts', 'Administrator', 'Inventory', 'Network']
+  },
   branch: {
     type: String,
     default: ''
@@ -111,11 +111,11 @@ modules: {
 });
 
 // Encrypt password before saving
-userSchema.pre('save', async function(next) {
+userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) {
     return next();
   }
-  
+
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
@@ -128,7 +128,7 @@ userSchema.pre('save', async function(next) {
 });
 
 // Compare entered password with hashed password
-userSchema.methods.matchPassword = async function(enteredPassword) {
+userSchema.methods.matchPassword = async function (enteredPassword) {
   try {
     return await bcrypt.compare(enteredPassword, this.password);
   } catch (error) {
