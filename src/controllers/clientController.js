@@ -136,45 +136,68 @@ const getClientById = async (req, res) => {
 // @route   GET /api/clients/search
 const searchClient = async (req, res) => {
   try {
-    const { idType, idValue } = req.query;
-    
+    const { idType, idValue, name } = req.query;
+
+    // NAME SEARCH
+    if (name) {
+      const clients = await Client.find({
+        name: {
+          $regex: name,
+          $options: "i",
+        },
+      }).limit(20);
+
+      return res.status(200).json({
+        success: true,
+        data: clients,
+        count: clients.length,
+      });
+    }
+
+    // GST / PAN / ADHAAR SEARCH
     if (!idType || !idValue) {
       return res.status(400).json({
         success: false,
-        message: 'idType and idValue are required'
+        message: "idType and idValue are required",
       });
     }
-    
+
     let query = {};
+
     switch (idType) {
-      case 'GST Number':
+      case "GST Number":
         query = { gstNumber: idValue };
         break;
-      case 'Adhaar Number':
+
+      case "Adhaar Number":
         query = { adhaarNumber: idValue };
         break;
-      case 'PAN Number':
+
+      case "PAN Number":
         query = { panNumber: idValue };
         break;
+
       default:
         return res.status(400).json({
           success: false,
-          message: 'Invalid ID type'
+          message: "Invalid ID type",
         });
     }
-    
+
     const client = await Client.findOne(query);
-    
-    res.status(200).json({
+
+    return res.status(200).json({
       success: true,
       data: client || null,
-      message: client ? 'Client found' : 'Client not found'
+      message: client ? "Client found" : "Client not found",
     });
+
   } catch (error) {
-    console.error('Search client error:', error);
+    console.error("Search client error:", error);
+
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
   }
 };
