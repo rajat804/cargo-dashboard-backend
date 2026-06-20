@@ -1,5 +1,23 @@
 const Booking = require('../models/Booking');
 
+// Helper function to generate GR number
+const generateGRNo = async () => {
+  // Get the last booking
+  const lastBooking = await Booking.findOne().sort({ createdAt: -1 });
+  
+  let nextNumber = 1;
+  if (lastBooking && lastBooking.grNo) {
+    // Extract number from GR001 format
+    const match = lastBooking.grNo.match(/GR(\d+)/);
+    if (match) {
+      nextNumber = parseInt(match[1]) + 1;
+    }
+  }
+  
+  // Format as GR001, GR002, etc.
+  return `GR${String(nextNumber).padStart(3, '0')}`;
+};
+
 // Create Booking
 const createBooking = async (req, res) => {
   try {
@@ -13,7 +31,30 @@ const createBooking = async (req, res) => {
       voiceNoteUrl: bookingData.voiceNoteUrl ? "Present" : "Absent"
     });
     
-    const booking = new Booking(bookingData);
+    // ✅ Auto-generate GR number if not provided or empty
+    let grNo = bookingData.grNo;
+    if (!grNo || grNo.trim() === '') {
+      grNo = await generateGRNo();
+      console.log('Auto-generated GR No:', grNo);
+    }
+    
+    // ✅ Check if GR number already exists
+    const existingBooking = await Booking.findOne({ grNo });
+    if (existingBooking) {
+      // If exists, generate a new one
+      grNo = await generateGRNo();
+      console.log('GR No already exists, generated new:', grNo);
+    }
+    
+    // ✅ Add GR number to booking data
+    const finalBookingData = {
+      ...bookingData,
+      grNo,
+      status: bookingData.status || 'active',
+      bookingDate: bookingData.bookingDate || new Date(),
+    };
+    
+    const booking = new Booking(finalBookingData);
     await booking.save();
     
     console.log("Booking saved:", {
@@ -25,7 +66,7 @@ const createBooking = async (req, res) => {
     res.status(201).json({
       success: true,
       data: booking,
-      message: 'Booking created successfully'
+      message: `Booking created successfully! GR No: ${grNo}`
     });
   } catch (error) {
     console.error('Create booking error:', error);
@@ -35,6 +76,7 @@ const createBooking = async (req, res) => {
     });
   }
 };
+
 
 // Get all bookings with filters
 const getBookings = async (req, res) => {
