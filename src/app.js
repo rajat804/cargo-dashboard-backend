@@ -16,7 +16,11 @@ const longRouteManifestRoutes = require('./routes/longRouteManifestRoutes');
 const lorryHireChallanRoutes = require('./routes/lorryHireChallanRoutes');
 const authRoutes = require('./routes/authRoutes');
 const goodsArrivalRoutes = require('./routes/goodsArrivalRoutes');
-
+const purchaseBillRoutes = require('./routes/purchaseBillRoutes');
+const dispatchRoutes = require('./routes/dispatchRoutes');
+const stockRoutes = require("./routes/stockRoutes");
+const stockIssueRoutes = require('./routes/stockIssueRoutes');
+const despatchRoutes = require("./routes/despatchRoutes");
 
 // Middleware
 const errorHandler = require("./middleware/errorHandler");
@@ -51,8 +55,11 @@ app.use('/api/long-route-manifests', longRouteManifestRoutes);
 app.use('/api/lorry-hire-challans', lorryHireChallanRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/goods-arrival', goodsArrivalRoutes);
-
-
+app.use('/api/purchase-bills',purchaseBillRoutes);
+app.use('/api/stock-register', stockRoutes);
+app.use('/api/stock-issue', stockIssueRoutes);
+app.use('/api/dispatch', dispatchRoutes);
+app.use('/api/despatch', despatchRoutes);
 
 
 
