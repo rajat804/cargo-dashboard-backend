@@ -109,3 +109,37 @@ exports.getDispatchesByBranch = async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
+
+exports.getNextGrNumber = async (req, res) => {
+  try {
+    const { branch } = req.query;
+    if (!branch) {
+      return res.status(400).json({ success: false, error: 'Branch is required' });
+    }
+
+    const prefix = branch.substring(0, 2).toUpperCase();
+
+    // Find existing GR numbers for this branch
+    const dispatches = await Dispatch.find({
+      branchName: branch,
+      grBookNumber: { $regex: `^${prefix}` }
+    });
+
+    let maxNumber = 0;
+    dispatches.forEach(d => {
+      const num = parseInt(d.grBookNumber.replace(/\D/g, ''), 10);
+      if (!isNaN(num) && num > maxNumber) maxNumber = num;
+    });
+
+    const next = maxNumber + 1;
+    if (next > 50) {
+      return res.status(400).json({ success: false, error: 'GR book limit (50) reached for this branch' });
+    }
+
+    const grNumber = `${prefix}${String(next).padStart(3, '0')}`;
+    res.json({ success: true, grBookNumber: grNumber });
+  } catch (error) {
+    console.error('Error in getNextGrNumber:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
