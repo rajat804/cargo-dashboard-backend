@@ -14,6 +14,14 @@ const dispatchItemSchema = new mongoose.Schema({
 });
 
 const dispatchSchema = new mongoose.Schema({
+  grBookNumber: { type: String, default: '' },
+  fromLocation: { type: String, default: '' },
+  toLocation: { type: String, default: '' },
+  party: { type: String, default: '' },
+  destination: { type: String, default: '' },
+  containerDetails: { type: String, default: '' },
+  isShortDocument: { type: Boolean, default: false },
+  goodsType: { type: String, default: '' },
   dispatchDate: String,
   branchName: String,
   dispatchedTo: String,
