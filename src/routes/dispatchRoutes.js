@@ -1,26 +1,23 @@
 const express = require('express');
 const router = express.Router();
 const {
-  createDispatch,
   getAllDispatches,
-  getDispatchById,
+  createDispatch,
   updateDispatch,
   deleteDispatch,
-  getDispatchesByBranch,
-  getNextGrNumber
+  getNextGrNumber,
+  receiveDespatch,
+  cancelDespatch,
 } = require('../controllers/dispatchController');
 
-// ─── MUST COME BEFORE /:id ───
-router.get('/next-gr-number', getNextGrNumber);   // ✅ moved up
-
-// ─── Main Routes ───
-router.post('/', createDispatch);
 router.get('/', getAllDispatches);
-router.get('/:id', getDispatchById);              // ⚠️ now after /next-gr-number
+router.post('/', createDispatch);
 router.put('/:id', updateDispatch);
 router.delete('/:id', deleteDispatch);
+router.get('/next-gr', getNextGrNumber);   // query param: ?branch=HEAD OFFICE
 
-// Additional Routes
-router.get('/branch/:branchName', getDispatchesByBranch);
+router.post('/:id/receive', receiveDespatch);
+router.post('/:id/cancel', cancelDespatch);
+
 
 module.exports = router;

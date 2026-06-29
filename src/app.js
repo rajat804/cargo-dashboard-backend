@@ -20,7 +20,7 @@ const purchaseBillRoutes = require('./routes/purchaseBillRoutes');
 const dispatchRoutes = require('./routes/dispatchRoutes');
 const stockRoutes = require("./routes/stockRoutes");
 const stockIssueRoutes = require('./routes/stockIssueRoutes');
-const despatchRoutes = require("./routes/despatchRoutes");
+// const despatchRoutes = require("./routes/despatchRoutes");
 
 // Middleware
 const errorHandler = require("./middleware/errorHandler");
@@ -59,7 +59,7 @@ app.use('/api/purchase-bills',purchaseBillRoutes);
 app.use('/api/stock-register', stockRoutes);
 app.use('/api/stock-issue', stockIssueRoutes);
 app.use('/api/dispatch', dispatchRoutes);
-app.use('/api/despatch', despatchRoutes);
+// app.use('/api/despatch', despatchRoutes);
 
 
 

@@ -9,12 +9,9 @@ const {
   deletePurchaseBill,
 } = require('../controllers/purchaseBillController');
 
-// Static routes
 router.post('/', createPurchaseBill);
 router.get('/pending-pos', getPendingPurchaseOrders);
 router.get('/receipts', searchVendorBillReceipts);
-
-// Dynamic routes with :id
 router.get('/:id', getPurchaseBillById);
 router.put('/:id', updatePurchaseBill);
 router.delete('/:id', deletePurchaseBill);

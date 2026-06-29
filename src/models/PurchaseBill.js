@@ -1,3 +1,4 @@
+// models/PurchaseBill.js
 const mongoose = require('mongoose');
 
 const purchaseItemSchema = new mongoose.Schema({
@@ -41,7 +42,20 @@ const purchaseBillSchema = new mongoose.Schema({
   particulars: [particularSchema],
   roundOff: { type: Number, default: 0 },
   finalRemarks: { type: String, default: '' },
-  // Aggregated totals (optional but convenient)
+
+  // ---- NEW FIELDS (as per frontend Search & Edit) ----
+  poNo: { type: String, default: '' },
+  referenceNo: { type: String, default: '' },
+  divisionName: { type: String, default: '' },
+  tdsAmount: { type: Number, default: 0 },
+  advanceAdjusted: { type: Number, default: 0 },
+  netPayable: { type: Number, default: 0 },
+  billStatus: { type: String, default: 'Pending' },
+  voucherNo: { type: String, default: '' },
+  balancePayable: { type: Number, default: 0 },
+  paymentTerms: { type: String, default: '' },
+
+  // Aggregated totals (redundant but convenient)
   totalQty: { type: Number, default: 0 },
   totalSubTotal: { type: Number, default: 0 },
   totalIgst: { type: Number, default: 0 },

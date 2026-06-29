@@ -1,60 +1,52 @@
+// controllers/purchaseBillController.js
 const PurchaseBill = require('../models/PurchaseBill');
 const PurchaseOrder = require('../models/PurchaseOrder');
-// Remove unused imports: Branch, Vendor (not used in this controller)
 
-// Helper to generate receipt ID
+// Helper: generate unique receipt ID
 const generateReceiptId = () => {
   const now = new Date();
-  const timestamp = now.getTime().toString().slice(-6);
-  return `RCP${timestamp}`;
+  const ts = now.getTime().toString().slice(-6);
+  const rand = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  return `RCP${ts}${rand}`;
 };
 
-// Helper to recalculate totals from items
+// Helper: recalc totals from items
 const recalcTotals = (items) => {
   let totalQty = 0, totalSubTotal = 0, totalIgst = 0, totalAmount = 0;
   items.forEach(item => {
     const qty = Number(item.qty) || 0;
     const rate = Number(item.rate) || 0;
-    const igstPercent = Number(item.igstPercent) || 0;
-    const subTotal = qty * rate;
-    const igstAmount = (subTotal * igstPercent) / 100;
-    const total = subTotal + igstAmount;
+    const igstP = Number(item.igstPercent) || 0;
+    const sub = qty * rate;
+    const igst = (sub * igstP) / 100;
     totalQty += qty;
-    totalSubTotal += subTotal;
-    totalIgst += igstAmount;
-    totalAmount += total;
+    totalSubTotal += sub;
+    totalIgst += igst;
+    totalAmount += (sub + igst);
   });
   return { totalQty, totalSubTotal, totalIgst, totalAmount };
 };
 
-// ==================== CREATE PURCHASE BILL ====================
+// ==================== CREATE ====================
 exports.createPurchaseBill = async (req, res) => {
   try {
     const {
-      branch,
-      branchGst,
-      receiptDate,
-      storeName,
-      vendor,
-      vendorGst,
-      vendorDepartment,
-      subLedger,
-      invoiceCategory,
-      invoiceNo,
-      invoiceDate,
-      items,
-      particulars,
-      roundOff,
-      finalRemarks,
+      branch, branchGst, receiptDate, storeName, vendor, vendorGst,
+      vendorDepartment, subLedger, invoiceCategory, invoiceNo, invoiceDate,
+      items, particulars, roundOff, finalRemarks,
+      // optional fields from frontend (if sent)
+      poNo, referenceNo, divisionName, tdsAmount, advanceAdjusted,
+      paymentTerms, voucherNo
     } = req.body;
 
+    // Validations
     if (!branch) return res.status(400).json({ error: 'Branch is required' });
     if (!vendor) return res.status(400).json({ error: 'Vendor is required' });
     if (!invoiceCategory) return res.status(400).json({ error: 'Invoice Category is required' });
     if (!invoiceNo) return res.status(400).json({ error: 'Invoice No. is required' });
     if (!items || items.length === 0) return res.status(400).json({ error: 'At least one purchase item is required' });
 
-    // Recalculate totals
+    // Recalculate totals (override frontend values for safety)
     const { totalQty, totalSubTotal, totalIgst, totalAmount } = recalcTotals(items);
 
     const receiptId = generateReceiptId();
@@ -80,17 +72,28 @@ exports.createPurchaseBill = async (req, res) => {
       totalSubTotal,
       totalIgst,
       totalAmount,
+      // Set new fields with defaults / provided values
+      poNo: poNo || '',
+      referenceNo: referenceNo || '',
+      divisionName: divisionName || '',
+      tdsAmount: tdsAmount || 0,
+      advanceAdjusted: advanceAdjusted || 0,
+      netPayable: totalAmount, // default
+      billStatus: 'Pending',
+      voucherNo: voucherNo || '',
+      balancePayable: totalAmount,
+      paymentTerms: paymentTerms || '',
     });
 
     await newBill.save();
-    res.status(201).json({ success: true, receiptId, data: newBill });
+    res.status(201).json({ success: true, receiptId });
   } catch (error) {
     console.error('Create purchase bill error:', error);
     res.status(500).json({ error: error.message || 'Server error' });
   }
 };
 
-// ==================== GET PENDING PURCHASE ORDERS ====================
+// ==================== GET PENDING POs ====================
 exports.getPendingPurchaseOrders = async (req, res) => {
   try {
     const { branch, vendor, asOnDate } = req.query;
@@ -127,13 +130,14 @@ exports.getPendingPurchaseOrders = async (req, res) => {
   }
 };
 
-// ==================== SEARCH VENDOR BILL RECEIPTS ====================
+// ==================== SEARCH RECEIPTS ====================
 exports.searchVendorBillReceipts = async (req, res) => {
   try {
     const { fromDate, toDate, filterOn, invoiceCategory } = req.query;
 
     const filter = {};
 
+    // Date range
     if (fromDate && toDate) {
       const from = new Date(fromDate);
       from.setHours(0, 0, 0, 0);
@@ -142,17 +146,12 @@ exports.searchVendorBillReceipts = async (req, res) => {
       filter.receiptDate = { $gte: from, $lte: to };
     }
 
+    // Invoice category filter
     if (invoiceCategory && invoiceCategory !== '' && invoiceCategory !== 'all') {
       filter.invoiceCategory = invoiceCategory;
     }
 
-    if (filterOn === 'Today') {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      filter.receiptDate = { $gte: today, $lt: tomorrow };
-    }
+    // Optional: handle filterOn shortcuts (but we already have date range, so we can ignore filterOn)
 
     const bills = await PurchaseBill.find(filter)
       .sort({ receiptDate: -1 })
@@ -190,17 +189,15 @@ exports.searchVendorBillReceipts = async (req, res) => {
   }
 };
 
-// ==================== GET PURCHASE BILL BY ID ====================
+// ==================== GET BY ID ====================
 exports.getPurchaseBillById = async (req, res) => {
   try {
     const { id } = req.params;
-    if (!id) {
-      return res.status(400).json({ error: 'Receipt ID is required' });
-    }
+    if (!id) return res.status(400).json({ error: 'Receipt ID is required' });
     const bill = await PurchaseBill.findOne({ receiptId: id });
-    if (!bill) {
-      return res.status(404).json({ error: 'Purchase bill not found' });
-    }
+    if (!bill) return res.status(404).json({ error: 'Purchase bill not found' });
+
+    // Convert to frontend format (matches schema, so just return)
     res.json(bill);
   } catch (error) {
     console.error('Get purchase bill error:', error);
@@ -208,22 +205,24 @@ exports.getPurchaseBillById = async (req, res) => {
   }
 };
 
-// ==================== UPDATE PURCHASE BILL ====================
+// ==================== UPDATE ====================
 exports.updatePurchaseBill = async (req, res) => {
   try {
     const { id } = req.params;
-    if (!id) {
-      return res.status(400).json({ error: 'Receipt ID is required' });
-    }
+    if (!id) return res.status(400).json({ error: 'Receipt ID is required' });
+
     const updateData = req.body;
 
-    // Recalculate totals if items are present
+    // If items provided, recalc totals
     if (updateData.items && Array.isArray(updateData.items)) {
       const { totalQty, totalSubTotal, totalIgst, totalAmount } = recalcTotals(updateData.items);
       updateData.totalQty = totalQty;
       updateData.totalSubTotal = totalSubTotal;
       updateData.totalIgst = totalIgst;
       updateData.totalAmount = totalAmount;
+      // Also update netPayable / balancePayable if not provided
+      if (!updateData.netPayable) updateData.netPayable = totalAmount;
+      if (!updateData.balancePayable) updateData.balancePayable = totalAmount;
     }
 
     const bill = await PurchaseBill.findOneAndUpdate(
@@ -232,9 +231,7 @@ exports.updatePurchaseBill = async (req, res) => {
       { new: true, runValidators: true }
     );
 
-    if (!bill) {
-      return res.status(404).json({ error: 'Purchase bill not found' });
-    }
+    if (!bill) return res.status(404).json({ error: 'Purchase bill not found' });
     res.json(bill);
   } catch (error) {
     console.error('Update purchase bill error:', error);
@@ -242,17 +239,13 @@ exports.updatePurchaseBill = async (req, res) => {
   }
 };
 
-// ==================== DELETE PURCHASE BILL ====================
+// ==================== DELETE ====================
 exports.deletePurchaseBill = async (req, res) => {
   try {
     const { id } = req.params;
-    if (!id) {
-      return res.status(400).json({ error: 'Receipt ID is required' });
-    }
+    if (!id) return res.status(400).json({ error: 'Receipt ID is required' });
     const bill = await PurchaseBill.findOneAndDelete({ receiptId: id });
-    if (!bill) {
-      return res.status(404).json({ error: 'Purchase bill not found' });
-    }
+    if (!bill) return res.status(404).json({ error: 'Purchase bill not found' });
     res.json({ success: true, message: 'Purchase bill deleted successfully' });
   } catch (error) {
     console.error('Delete purchase bill error:', error);
