@@ -117,51 +117,81 @@ exports.deleteDispatch = async (req, res) => {
 };
 
 // ==================== GET NEXT GR NUMBER ====================
+// controllers/dispatchController.js
+
+
+// ✅ Dynamic prefix generator - Har branch ke liye auto prefix
+const generateBranchPrefix = (branchName) => {
+  // Remove special characters and spaces, take first 2 letters
+  const cleanName = branchName.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  
+  // If name has multiple words, take first letters (e.g., "HEAD OFFICE" → "HO")
+  const words = branchName.split(' ');
+  if (words.length > 1) {
+    // Take first letter of each word (max 2 letters)
+    let prefix = '';
+    for (let i = 0; i < Math.min(words.length, 2); i++) {
+      if (words[i].length > 0) {
+        prefix += words[i][0].toUpperCase();
+      }
+    }
+    return prefix || cleanName.substring(0, 2);
+  }
+  
+  // Single word - take first 2 letters
+  return cleanName.substring(0, 2);
+};
+
 exports.getNextGrNumber = async (req, res) => {
   try {
     const { branch } = req.query;
+    console.log('📥 getNextGrNumber called with branch:', branch);
+    
     if (!branch) {
       return res.status(400).json({ error: 'Branch name is required' });
     }
 
-    // Predefined branch prefixes (customize as per your system)
-    const branchPrefixMap = {
-      'HEAD OFFICE': 'KH',
-      'DELHI BRANCH': 'DL',
-      'MUMBAI BRANCH': 'MB',
-      'BANGALORE BRANCH': 'BL',
-      'CHENNAI BRANCH': 'CH',
-      'KOLKATA BRANCH': 'KO',
-      // add more as needed
-    };
-    const prefix = branchPrefixMap[branch];
-    if (!prefix) {
-      return res.status(400).json({ error: 'Branch not recognized for GR generation' });
-    }
+    // ✅ Dynamic prefix generation (no need for static map anymore)
+    const prefix = generateBranchPrefix(branch);
+    console.log('🔤 Generated prefix for branch:', branch, '→', prefix);
 
-    // Find or create sequence for this branch
+    // Sequence find/update
     let seq = await GrSequence.findOne({ branch });
     if (!seq) {
-      seq = new GrSequence({ branch, prefix, currentNumber: 1 });
+      console.log('🆕 Creating new sequence for branch:', branch);
+      seq = new GrSequence({ 
+        branch, 
+        prefix, 
+        currentNumber: 1,
+        maxLimit: 50
+      });
     }
 
-    // Check if limit reached (50)
     if (seq.currentNumber > seq.maxLimit) {
-      return res.status(400).json({ error: 'GR number limit (50) reached for this branch' });
+      return res.status(400).json({ 
+        error: `GR number limit (${seq.maxLimit}) reached for this branch` 
+      });
     }
 
-    // Generate formatted GR number: prefix + 6-digit zero-padded number
     const paddedNum = String(seq.currentNumber).padStart(6, '0');
     const grNumber = `${prefix}${paddedNum}`;
 
-    // Increment for next use
     seq.currentNumber += 1;
     await seq.save();
 
-    res.json({ grNumber });
+    console.log('✅ GR Number generated:', grNumber);
+
+    // ✅ Return with grNumber field
+    res.json({ 
+      success: true,
+      grNumber: grNumber 
+    });
+    
   } catch (error) {
-    console.error('Get next GR number error:', error);
-    res.status(500).json({ error: error.message });
+    console.error('❌ Get next GR number error:', error);
+    res.status(500).json({ 
+      error: error.message || 'Failed to generate GR number' 
+    });
   }
 };
 
