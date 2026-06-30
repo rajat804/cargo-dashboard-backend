@@ -1,4 +1,5 @@
 const StockIssue = require('../models/StockIssue');
+const { format } = require('date-fns'); // ✅ Import format
 
 // Helper: Generate Issue ID
 const generateIssueId = () => {
@@ -40,9 +41,6 @@ exports.createStockIssue = async (req, res) => {
 
     await newIssue.save();
 
-    // ✅ OPTIONAL: Auto-update Stock Register? 
-    // Stock Register is computed view, so no need to update separately.
-
     res.status(201).json({ success: true, issueId, data: newIssue });
   } catch (error) {
     console.error('Create stock issue error:', error);
@@ -61,8 +59,6 @@ exports.getStockIssues = async (req, res) => {
     if (item) filter.itemName = item;
 
     if (fromDate && toDate) {
-      // Since dates are stored as "dd-mm-yyyy" strings
-      // We need to compare as strings (lexicographically)
       filter.issueDate = { $gte: fromDate, $lte: toDate };
     }
 
@@ -81,7 +77,12 @@ exports.getStockIssues = async (req, res) => {
 exports.getStockIssueById = async (req, res) => {
   try {
     const { id } = req.params;
-    const issue = await StockIssue.findOne({ issueId: id });
+    
+    // ✅ Try both _id and issueId
+    const issue = await StockIssue.findOne({ 
+      $or: [{ _id: id }, { issueId: id }] 
+    });
+    
     if (!issue) {
       return res.status(404).json({ error: 'Stock issue not found' });
     }
@@ -98,16 +99,31 @@ exports.updateStockIssue = async (req, res) => {
     const { id } = req.params;
     const updateData = req.body;
 
-    const issue = await StockIssue.findOneAndUpdate(
-      { issueId: id },
-      { $set: updateData },
-      { new: true, runValidators: true }
-    );
+    console.log(`📤 Updating stock issue with id: ${id}`);
+    console.log('📝 Update data:', updateData);
+
+    // ✅ Try both _id and issueId
+    let issue = await StockIssue.findOne({ _id: id });
+    if (!issue) {
+      issue = await StockIssue.findOne({ issueId: id });
+    }
 
     if (!issue) {
+      console.log(`❌ Stock issue not found with id: ${id}`);
       return res.status(404).json({ error: 'Stock issue not found' });
     }
-    res.json(issue);
+
+    // ✅ Update the issue
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] !== undefined && updateData[key] !== null) {
+        issue[key] = updateData[key];
+      }
+    });
+
+    await issue.save();
+
+    console.log(`✅ Stock issue updated successfully: ${issue._id}`);
+    res.json({ success: true, data: issue });
   } catch (error) {
     console.error('Update stock issue error:', error);
     res.status(500).json({ error: error.message });
@@ -118,10 +134,23 @@ exports.updateStockIssue = async (req, res) => {
 exports.deleteStockIssue = async (req, res) => {
   try {
     const { id } = req.params;
-    const issue = await StockIssue.findOneAndDelete({ issueId: id });
+
+    console.log(`📤 Deleting stock issue with id: ${id}`);
+
+    // ✅ Try both _id and issueId
+    let issue = await StockIssue.findOne({ _id: id });
     if (!issue) {
+      issue = await StockIssue.findOne({ issueId: id });
+    }
+
+    if (!issue) {
+      console.log(`❌ Stock issue not found with id: ${id}`);
       return res.status(404).json({ error: 'Stock issue not found' });
     }
+
+    await StockIssue.deleteOne({ _id: issue._id });
+
+    console.log(`✅ Stock issue deleted successfully: ${issue._id}`);
     res.json({ success: true, message: 'Stock issue deleted successfully' });
   } catch (error) {
     console.error('Delete stock issue error:', error);
