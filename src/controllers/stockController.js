@@ -1,9 +1,9 @@
 const PurchaseBill = require('../models/PurchaseBill');
 const Dispatch = require('../models/Dispatch');
 const StockItem = require('../models/StockItem');
-const StockIssue = require('../models/StockIssue'); // 🆕
+const StockIssue = require('../models/StockIssue'); // 🆕 ADD THIS
 
-// Helper: Format date to string
+// Helper: Format date
 const formatDateToString = (date) => {
   const d = new Date(date);
   const day = String(d.getDate()).padStart(2, '0');
@@ -27,7 +27,7 @@ exports.getStockRegister = async (req, res) => {
     }
     const bills = await PurchaseBill.find(purchaseFilter).select('items').lean();
 
-    // 2️⃣ Fetch Dispatches (OUTWARD - External)
+    // 2️⃣ Fetch Dispatches (OUTWARD - External) - EXCLUDE CANCELLED
     let dispatchFilter = {
       dispatchDate: { $lte: dateStr },
       status: { $ne: 'Cancelled' }
@@ -37,7 +37,7 @@ exports.getStockRegister = async (req, res) => {
     }
     const dispatches = await Dispatch.find(dispatchFilter).select('items').lean();
 
-    // 3️⃣ 🆕 Fetch Stock Issues (OUTWARD - Internal)
+    // 3️⃣ 🆕 Fetch Stock Issues (OUTWARD - Internal from Booking) - EXCLUDE RETURNED
     let issueFilter = {
       issueDate: { $lte: dateStr },
       status: { $ne: 'Returned' }
@@ -45,9 +45,7 @@ exports.getStockRegister = async (req, res) => {
     if (item && item !== 'ALL') {
       issueFilter.itemName = item;
     }
-    const stockIssues = await StockIssue.find(issueFilter)
-      .select('itemName unitType quantity')
-      .lean();
+    const stockIssues = await StockIssue.find(issueFilter).select('itemName unitType quantity').lean();
 
     // 4️⃣ Fetch Opening Stock & Blocked
     let stockItemFilter = {};
@@ -63,7 +61,7 @@ exports.getStockRegister = async (req, res) => {
     // 5️⃣ Aggregate Data
     const stockMap = {};
 
-    // Process Purchases (IN)
+    // --- Process Purchases (IN) ---
     bills.forEach((bill) => {
       if (bill.items && Array.isArray(bill.items)) {
         bill.items.forEach((i) => {
@@ -85,7 +83,7 @@ exports.getStockRegister = async (req, res) => {
       }
     });
 
-    // Process Dispatches (OUT - External)
+    // --- Process Dispatches (OUT - External) ---
     dispatches.forEach((dispatch) => {
       if (dispatch.items && Array.isArray(dispatch.items)) {
         dispatch.items.forEach((i) => {
@@ -107,7 +105,7 @@ exports.getStockRegister = async (req, res) => {
       }
     });
 
-    // 🆕 Process Stock Issues (OUT - Internal)
+    // 🆕 --- Process Stock Issues (OUT - Internal from Booking) ---
     stockIssues.forEach((issue) => {
       const itemName = issue.itemName;
       if (!itemName) return;
@@ -125,7 +123,7 @@ exports.getStockRegister = async (req, res) => {
       stockMap[itemName].issued += Number(issue.quantity) || 0;
     });
 
-    // Merge Opening Stock & Blocked
+    // --- Merge Opening Stock & Blocked ---
     Object.keys(stockMap).forEach((key) => {
       const master = stockItemMap[key];
       if (master) {
