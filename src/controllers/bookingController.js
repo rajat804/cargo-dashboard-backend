@@ -4,7 +4,7 @@ const Booking = require('../models/Booking');
 const generateGRNo = async () => {
   // Get the last booking
   const lastBooking = await Booking.findOne().sort({ createdAt: -1 });
-  
+
   let nextNumber = 1;
   if (lastBooking && lastBooking.grNo) {
     // Extract number from GR001 format
@@ -13,7 +13,7 @@ const generateGRNo = async () => {
       nextNumber = parseInt(match[1]) + 1;
     }
   }
-  
+
   // Format as GR001, GR002, etc.
   return `GR${String(nextNumber).padStart(3, '0')}`;
 };
@@ -22,7 +22,7 @@ const generateGRNo = async () => {
 const createBooking = async (req, res) => {
   try {
     const bookingData = req.body;
-    
+
     console.log("Received booking data:", {
       damageType: bookingData.damageType,
       damageReason: bookingData.damageReason,
@@ -30,14 +30,14 @@ const createBooking = async (req, res) => {
       damagePhotosCount: bookingData.damagePhotos?.length,
       voiceNoteUrl: bookingData.voiceNoteUrl ? "Present" : "Absent"
     });
-    
+
     // ✅ Auto-generate GR number if not provided or empty
     let grNo = bookingData.grNo;
     if (!grNo || grNo.trim() === '') {
       grNo = await generateGRNo();
       console.log('Auto-generated GR No:', grNo);
     }
-    
+
     // ✅ Check if GR number already exists
     const existingBooking = await Booking.findOne({ grNo });
     if (existingBooking) {
@@ -45,7 +45,7 @@ const createBooking = async (req, res) => {
       grNo = await generateGRNo();
       console.log('GR No already exists, generated new:', grNo);
     }
-    
+
     // ✅ Add GR number to booking data
     const finalBookingData = {
       ...bookingData,
@@ -53,16 +53,16 @@ const createBooking = async (req, res) => {
       status: bookingData.status || 'active',
       bookingDate: bookingData.bookingDate || new Date(),
     };
-    
+
     const booking = new Booking(finalBookingData);
     await booking.save();
-    
+
     console.log("Booking saved:", {
       id: booking._id,
       grNo: booking.grNo,
       damagePackageCount: booking.damagePackageCount
     });
-    
+
     res.status(201).json({
       success: true,
       data: booking,
@@ -81,30 +81,30 @@ const createBooking = async (req, res) => {
 // Get all bookings with filters
 const getBookings = async (req, res) => {
   try {
-    const { 
-      status, 
-      fromDate, 
-      toDate, 
-      grNo, 
+    const {
+      status,
+      fromDate,
+      toDate,
+      grNo,
       branch,
-      page = 1, 
-      limit = 50 
+      page = 1,
+      limit = 50
     } = req.query;
-    
+
     let query = {};
-    
+
     if (status) query.status = status;
     if (grNo) query.grNo = { $regex: grNo, $options: 'i' };
     if (branch) query.bookingFrom = branch;
-    
+
     if (fromDate || toDate) {
       query.bookingDate = {};
       if (fromDate) query.bookingDate.$gte = new Date(fromDate);
       if (toDate) query.bookingDate.$lte = new Date(toDate);
     }
-    
+
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    
+
     const [bookings, total] = await Promise.all([
       Booking.find(query)
         .sort({ createdAt: -1 })
@@ -112,7 +112,7 @@ const getBookings = async (req, res) => {
         .limit(parseInt(limit)),
       Booking.countDocuments(query)
     ]);
-    
+
     res.status(200).json({
       success: true,
       data: bookings,
@@ -182,20 +182,20 @@ const getBookingByGrNo = async (req, res) => {
 const updateBooking = async (req, res) => {
   try {
     const bookingData = req.body;
-    
+
     const booking = await Booking.findByIdAndUpdate(
       req.params.id,
       { ...bookingData, updatedAt: Date.now() },
       { new: true, runValidators: true }
     );
-    
+
     if (!booking) {
       return res.status(404).json({
         success: false,
         message: 'Booking not found'
       });
     }
-    
+
     res.status(200).json({
       success: true,
       data: booking,
@@ -223,14 +223,14 @@ const cancelBooking = async (req, res) => {
       },
       { new: true }
     );
-    
+
     if (!booking) {
       return res.status(404).json({
         success: false,
         message: 'Booking not found'
       });
     }
-    
+
     res.status(200).json({
       success: true,
       data: booking,
@@ -257,14 +257,14 @@ const restoreBooking = async (req, res) => {
       },
       { new: true }
     );
-    
+
     if (!booking) {
       return res.status(404).json({
         success: false,
         message: 'Booking not found'
       });
     }
-    
+
     res.status(200).json({
       success: true,
       data: booking,
@@ -289,9 +289,9 @@ const deleteBooking = async (req, res) => {
         message: 'Booking not found'
       });
     }
-    
+
     await Booking.findByIdAndDelete(req.params.id);
-    
+
     res.status(200).json({
       success: true,
       message: 'Booking deleted permanently'
@@ -330,7 +330,7 @@ const getBookingStats = async (req, res) => {
         }
       ])
     ]);
-    
+
     res.status(200).json({
       success: true,
       data: {
@@ -367,14 +367,14 @@ const updatePodEntry = async (req, res) => {
       },
       { new: true }
     );
-    
+
     if (!booking) {
       return res.status(404).json({
         success: false,
         message: 'Booking not found'
       });
     }
-    
+
     res.status(200).json({
       success: true,
       data: booking,
@@ -401,14 +401,14 @@ const updateDetention = async (req, res) => {
       },
       { new: true }
     );
-    
+
     if (!booking) {
       return res.status(404).json({
         success: false,
         message: 'Booking not found'
       });
     }
-    
+
     res.status(200).json({
       success: true,
       data: booking,
@@ -423,6 +423,37 @@ const updateDetention = async (req, res) => {
   }
 };
 
+
+const createStockIssueFromBooking = async (booking) => {
+  for (const item of booking.goodsItems) {
+    await StockIssue.create({
+      issueId: `ISS${booking.grNo}`,
+      issueTo: booking.bookingFrom,
+      issueDate: format(booking.bookingDate, 'dd-MM-yyyy'),
+      itemName: item.content || 'Goods',
+      unitType: 'PCS',
+      quantity: item.noOfPckgs || 1,
+      remarks: `Created from Booking ${booking.grNo}`,
+    });
+  }
+};
+
+const createDespatchFromBooking = async (booking) => {
+  await Dispatch.create({
+    dispatchId: `DISP${booking.grNo}`,
+    dispatchDate: format(booking.bookingDate, 'dd-MM-yyyy'),
+    branchName: booking.bookingFrom,
+    dispatchedTo: booking.destination,
+    vendorGrNo: booking.grNo,
+    items: booking.goodsItems.map(item => ({
+      itemName: item.content,
+      unitType: 'PCS',
+      qty: item.noOfPckgs || 1,
+    })),
+    remarks: `Created from Booking ${booking.grNo}`,
+  });
+};
+
 module.exports = {
   createBooking,
   getBookings,
@@ -434,5 +465,7 @@ module.exports = {
   deleteBooking,
   getBookingStats,
   updatePodEntry,
-  updateDetention
+  updateDetention,
+  createStockIssueFromBooking,
+  createDespatchFromBooking
 };
